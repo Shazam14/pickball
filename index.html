@@ -1,0 +1,1110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SideOut Court Booking</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green: #22c55e;
+    --green-bright: #4ade80;
+    --green-dark: #16a34a;
+    --black: #000000;
+    --dark: #0a0a0a;
+    --dark2: #111111;
+    --dark3: #1a1a1a;
+    --gray: #2a2a2a;
+    --gray2: #3a3a3a;
+    --text-muted: #666;
+    --text-light: #999;
+    --white: #ffffff;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: 'Barlow', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* GRID BACKGROUND */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: 
+      linear-gradient(rgba(34,197,94,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34,197,94,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 40px;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(34,197,94,0.15);
+  }
+
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 44px;
+    height: 44px;
+  }
+
+  .logo-text {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: 22px;
+    letter-spacing: 2px;
+    color: var(--green);
+    text-transform: uppercase;
+  }
+
+  .logo-sub {
+    font-size: 10px;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    display: block;
+    margin-top: -4px;
+  }
+
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+
+  .nav-links a {
+    color: var(--text-light);
+    text-decoration: none;
+    font-size: 13px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    font-weight: 500;
+    transition: color 0.2s;
+  }
+
+  .nav-links a:hover { color: var(--green); }
+
+  .nav-cta {
+    background: var(--green);
+    color: var(--black) !important;
+    padding: 8px 20px;
+    font-weight: 700 !important;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  }
+
+  /* HERO */
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    padding: 120px 40px 80px;
+    overflow: hidden;
+  }
+
+  .hero-glow {
+    position: absolute;
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 70%);
+    top: 50%;
+    right: 5%;
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  .hero-content {
+    position: relative;
+    z-index: 1;
+    max-width: 640px;
+  }
+
+  .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.3);
+    padding: 6px 14px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--green);
+    margin-bottom: 28px;
+    font-weight: 600;
+  }
+
+  .hero-badge::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.4); }
+  }
+
+  h1 {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: clamp(56px, 8vw, 96px);
+    line-height: 0.9;
+    text-transform: uppercase;
+    letter-spacing: -1px;
+    margin-bottom: 24px;
+  }
+
+  h1 .line1 { color: var(--white); display: block; }
+  h1 .line2 { color: var(--green); display: block; }
+  h1 .line3 { color: var(--white); display: block; font-size: 0.65em; letter-spacing: 4px; font-weight: 400; }
+
+  .hero-desc {
+    color: var(--text-light);
+    font-size: 16px;
+    line-height: 1.7;
+    margin-bottom: 40px;
+    max-width: 480px;
+    font-weight: 300;
+  }
+
+  .hero-btns {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .btn-primary {
+    background: var(--green);
+    color: var(--black);
+    padding: 14px 32px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-primary:hover {
+    background: var(--green-bright);
+    transform: translateY(-2px);
+  }
+
+  .btn-outline {
+    background: transparent;
+    color: var(--white);
+    padding: 14px 32px;
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 16px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    border: 1px solid rgba(255,255,255,0.2);
+    cursor: pointer;
+    clip-path: polygon(12px 0%, 100% 0%, calc(100% - 12px) 100%, 0% 100%);
+    transition: all 0.2s;
+    text-decoration: none;
+    display: inline-block;
+  }
+
+  .btn-outline:hover {
+    border-color: var(--green);
+    color: var(--green);
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    position: relative;
+    z-index: 1;
+    background: var(--dark2);
+    border-top: 1px solid rgba(34,197,94,0.15);
+    border-bottom: 1px solid rgba(34,197,94,0.15);
+    padding: 28px 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+  }
+
+  .stat-item {
+    text-align: center;
+    padding: 0 20px;
+    border-right: 1px solid rgba(255,255,255,0.06);
+  }
+  .stat-item:last-child { border-right: none; }
+
+  .stat-num {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 40px;
+    font-weight: 900;
+    color: var(--green);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: 500;
+  }
+
+  /* BOOKING SECTION */
+  .booking-section {
+    position: relative;
+    z-index: 1;
+    padding: 80px 40px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--green);
+    font-weight: 600;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-weight: 900;
+    font-size: clamp(36px, 5vw, 56px);
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 48px;
+  }
+
+  /* BOOKING WIDGET */
+  .booking-widget {
+    background: var(--dark2);
+    border: 1px solid rgba(34,197,94,0.2);
+    padding: 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .booking-widget::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--green), transparent);
+  }
+
+  .booking-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 16px;
+    align-items: end;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .field-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    font-weight: 600;
+  }
+
+  .field-input {
+    background: var(--dark3);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--white);
+    padding: 14px 16px;
+    font-family: 'Barlow', sans-serif;
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+    width: 100%;
+    appearance: none;
+  }
+
+  .field-input:focus {
+    border-color: var(--green);
+  }
+
+  .field-input option {
+    background: var(--dark3);
+  }
+
+  /* COURTS GRID */
+  .courts-section {
+    position: relative;
+    z-index: 1;
+    padding: 0 40px 80px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .courts-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .court-card {
+    background: var(--dark2);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 20px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .court-card:hover {
+    border-color: var(--green);
+    transform: translateY(-2px);
+  }
+
+  .court-card.available {
+    border-color: rgba(34,197,94,0.2);
+  }
+
+  .court-card.booked {
+    border-color: rgba(255,255,255,0.04);
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .court-card.selected {
+    border-color: var(--green);
+    background: rgba(34,197,94,0.08);
+  }
+
+  .court-card.selected::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--green);
+  }
+
+  .court-num {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--white);
+    line-height: 1;
+  }
+
+  .court-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 4px;
+  }
+
+  .court-status {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 600;
+    padding: 3px 8px;
+  }
+
+  .court-card.available .court-status {
+    background: rgba(34,197,94,0.1);
+    color: var(--green);
+  }
+
+  .court-card.booked .court-status {
+    background: rgba(255,255,255,0.05);
+    color: var(--text-muted);
+  }
+
+  .court-card.selected .court-status {
+    background: var(--green);
+    color: var(--black);
+  }
+
+  /* SCHEDULE */
+  .schedule-section {
+    position: relative;
+    z-index: 1;
+    padding: 0 40px 80px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .time-slots {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 8px;
+    margin-top: 32px;
+  }
+
+  .time-slot {
+    background: var(--dark2);
+    border: 1px solid rgba(255,255,255,0.06);
+    padding: 12px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+  }
+
+  .time-slot:hover { border-color: var(--green); color: var(--green); }
+
+  .time-slot.taken {
+    opacity: 0.3;
+    cursor: not-allowed;
+    text-decoration: line-through;
+  }
+
+  .time-slot.selected {
+    background: var(--green);
+    color: var(--black);
+    border-color: var(--green);
+  }
+
+  /* CONFIRMATION PANEL */
+  .confirm-panel {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--dark2);
+    border-top: 2px solid var(--green);
+    padding: 20px 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 200;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+  }
+
+  .confirm-panel.visible {
+    transform: translateY(0);
+  }
+
+  .confirm-details {
+    display: flex;
+    gap: 32px;
+    align-items: center;
+  }
+
+  .confirm-item {
+    text-align: center;
+  }
+
+  .confirm-val {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--green);
+  }
+
+  .confirm-key {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .confirm-price {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--white);
+  }
+
+  .confirm-price span {
+    font-size: 14px;
+    color: var(--text-muted);
+    font-weight: 400;
+  }
+
+  /* MODAL */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    backdrop-filter: blur(4px);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.open { display: flex; }
+
+  .modal {
+    background: var(--dark2);
+    border: 1px solid rgba(34,197,94,0.3);
+    padding: 48px;
+    width: 480px;
+    max-width: 95vw;
+    position: relative;
+  }
+
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--green);
+  }
+
+  .modal-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 28px;
+    font-weight: 900;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .modal-field {
+    margin-bottom: 16px;
+  }
+
+  .success-screen {
+    text-align: center;
+    padding: 20px 0;
+  }
+
+  .success-icon {
+    width: 72px;
+    height: 72px;
+    background: rgba(34,197,94,0.1);
+    border: 2px solid var(--green);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 24px;
+    font-size: 32px;
+  }
+
+  .success-title {
+    font-family: 'Barlow Condensed', sans-serif;
+    font-size: 32px;
+    font-weight: 900;
+    color: var(--green);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .success-sub {
+    color: var(--text-muted);
+    font-size: 14px;
+    margin-bottom: 28px;
+  }
+
+  .booking-summary {
+    background: var(--dark3);
+    border: 1px solid rgba(34,197,94,0.15);
+    padding: 20px;
+    text-align: left;
+    margin-bottom: 24px;
+  }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 0;
+    font-size: 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .summary-row:last-child { border-bottom: none; }
+  .summary-key { color: var(--text-muted); }
+  .summary-val { color: var(--white); font-weight: 600; }
+  .summary-val.green { color: var(--green); }
+
+  .close-btn {
+    position: absolute;
+    top: 16px; right: 16px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    cursor: pointer;
+    padding: 4px 8px;
+  }
+  .close-btn:hover { color: var(--white); }
+
+  /* FOOTER */
+  footer {
+    position: relative;
+    z-index: 1;
+    background: var(--dark2);
+    border-top: 1px solid rgba(34,197,94,0.1);
+    padding: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .footer-text {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .footer-text span { color: var(--green); }
+
+  /* ANIMATIONS */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hero-content { animation: fadeUp 0.6s ease forwards; }
+  .stats-bar { animation: fadeUp 0.6s 0.2s ease both; }
+
+  @media (max-width: 768px) {
+    nav { padding: 16px 20px; }
+    .nav-links { display: none; }
+    .hero { padding: 100px 20px 60px; }
+    .stats-bar { grid-template-columns: repeat(2,1fr); padding: 20px; }
+    .booking-section, .courts-section, .schedule-section { padding-left: 20px; padding-right: 20px; }
+    .booking-grid { grid-template-columns: 1fr 1fr; }
+    .courts-grid { grid-template-columns: repeat(5,1fr); gap: 6px; }
+    .time-slots { grid-template-columns: repeat(4,1fr); }
+    .confirm-panel { padding: 16px 20px; }
+    .confirm-details { gap: 16px; }
+    footer { flex-direction: column; gap: 16px; text-align: center; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">
+    <svg class="logo-icon" viewBox="0 0 44 44" fill="none">
+      <!-- Player silhouette simplified -->
+      <ellipse cx="28" cy="18" rx="7" ry="7" fill="#22c55e" opacity="0.9"/>
+      <circle cx="28" cy="18" rx="3" ry="3" fill="#000" opacity="0.4"/>
+      <circle cx="26" cy="16" rx="1" ry="1" fill="#000" opacity="0.6"/>
+      <circle cx="30" cy="16" rx="1" ry="1" fill="#000" opacity="0.6"/>
+      <!-- Paddle -->
+      <rect x="8" y="22" width="10" height="14" rx="2" fill="#22c55e" transform="rotate(-30 13 29)"/>
+      <rect x="17" y="30" width="3" height="8" rx="1" fill="#22c55e" transform="rotate(-30 18 34)"/>
+    </svg>
+    <div>
+      <div class="logo-text">SideOut</div>
+      <span class="logo-sub">Cebu City City</span>
+    </div>
+  </div>
+  <ul class="nav-links">
+    <li><a href="#">Courts</a></li>
+    <li><a href="#">Schedule</a></li>
+    <li><a href="#">Membership</a></li>
+    <li><a href="#">About</a></li>
+    <li><a href="#book" class="nav-cta">Book Now</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-glow"></div>
+  <div class="hero-content">
+    <div class="hero-badge">10 Courts Available Now</div>
+    <h1>
+      <span class="line1">Book Your</span>
+      <span class="line2">Court</span>
+      <span class="line3">Cebu City City, Cebu</span>
+    </h1>
+    <p class="hero-desc">
+      Philippines' premier SideOut facility. 10 professional courts, real-time availability, instant booking. Play today.
+    </p>
+    <div class="hero-btns">
+      <a href="#book" class="btn-primary" onclick="scrollToBook()">Reserve a Court</a>
+      <a href="#courts" class="btn-outline">View Schedule</a>
+    </div>
+  </div>
+</section>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat-item">
+    <div class="stat-num">10</div>
+    <div class="stat-label">Pro Courts</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">₱500</div>
+    <div class="stat-label">Per Hour</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">6AM</div>
+    <div class="stat-label">Opens Daily</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">10PM</div>
+    <div class="stat-label">Last Session</div>
+  </div>
+</div>
+
+<!-- BOOKING WIDGET -->
+<section class="booking-section" id="book">
+  <div class="section-label">— Reserve Your Slot</div>
+  <div class="section-title">Book a Court</div>
+
+  <div class="booking-widget">
+    <div class="booking-grid">
+      <div class="field-group">
+        <label class="field-label">Date</label>
+        <input type="date" class="field-input" id="bookDate" onchange="updateSlots()">
+      </div>
+      <div class="field-group">
+        <label class="field-label">Duration</label>
+        <select class="field-input" id="bookDuration" onchange="updatePrice()">
+          <option value="1">1 Hour — ₱500</option>
+          <option value="2" selected>2 Hours — ₱1,000</option>
+          <option value="3">3 Hours — ₱1,500</option>
+        </select>
+      </div>
+      <div class="field-group">
+        <label class="field-label">Players</label>
+        <select class="field-input" id="bookPlayers">
+          <option value="2">2 Players</option>
+          <option value="4" selected>4 Players</option>
+        </select>
+      </div>
+      <button class="btn-primary" onclick="checkAvailability()" style="white-space:nowrap;padding:14px 24px;">
+        Check Availability
+      </button>
+    </div>
+  </div>
+</section>
+
+<!-- COURTS -->
+<section class="courts-section" id="courts">
+  <div class="section-label">— Select Your Court</div>
+  <div class="section-title">10 Courts</div>
+  <div class="courts-grid" id="courtsGrid">
+    <!-- Generated by JS -->
+  </div>
+</section>
+
+<!-- TIME SLOTS -->
+<section class="schedule-section" id="schedule">
+  <div class="section-label">— Pick Your Time</div>
+  <div class="section-title">Available Times</div>
+  <div class="time-slots" id="timeSlots">
+    <!-- Generated by JS -->
+  </div>
+</section>
+
+<!-- CONFIRM PANEL -->
+<div class="confirm-panel" id="confirmPanel">
+  <div class="confirm-details">
+    <div class="confirm-item">
+      <div class="confirm-val" id="cpCourt">—</div>
+      <div class="confirm-key">Court</div>
+    </div>
+    <div class="confirm-item">
+      <div class="confirm-val" id="cpDate">—</div>
+      <div class="confirm-key">Date</div>
+    </div>
+    <div class="confirm-item">
+      <div class="confirm-val" id="cpTime">—</div>
+      <div class="confirm-key">Time</div>
+    </div>
+    <div class="confirm-item">
+      <div class="confirm-val" id="cpPlayers">—</div>
+      <div class="confirm-key">Players</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:24px;">
+    <div>
+      <div class="confirm-price" id="cpPrice">₱1,000 <span>total</span></div>
+    </div>
+    <button class="btn-primary" onclick="openModal()" style="font-size:14px;padding:14px 28px;">
+      Confirm & Pay
+    </button>
+  </div>
+</div>
+
+<!-- BOOKING MODAL -->
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalBox">
+    <button class="close-btn" onclick="closeModal()">✕</button>
+    <div id="modalContent">
+      <div class="modal-title">Complete Booking</div>
+      <div class="modal-field">
+        <label class="field-label">Full Name</label>
+        <input type="text" class="field-input" id="custName" placeholder="Juan dela Cruz" style="margin-top:8px;">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Phone Number</label>
+        <input type="tel" class="field-input" id="custPhone" placeholder="+63 9XX XXX XXXX" style="margin-top:8px;">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Email (optional)</label>
+        <input type="email" class="field-input" id="custEmail" placeholder="juan@email.com" style="margin-top:8px;">
+      </div>
+      <div style="margin-top:12px;padding:16px;background:var(--dark3);border:1px solid rgba(34,197,94,0.1);">
+        <div class="summary-row">
+          <span class="summary-key">Court</span>
+          <span class="summary-val" id="mCourt">—</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Date</span>
+          <span class="summary-val" id="mDate">—</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Time</span>
+          <span class="summary-val" id="mTime">—</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-key">Total</span>
+          <span class="summary-val green" id="mPrice">₱1,000</span>
+        </div>
+      </div>
+      <button class="btn-primary" onclick="submitBooking()" style="width:100%;margin-top:20px;font-size:15px;padding:16px;clip-path:none;">
+        Confirm Booking →
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="nav-logo">
+    <div>
+      <div class="logo-text">SideOut</div>
+      <span class="logo-sub">Cebu City City, Cebu, Philippines</span>
+    </div>
+  </div>
+  <div class="footer-text">
+    For inquiries: <span>+63 9XX XXX XXXX</span> · Bookings powered by <span>n8n + Google Calendar</span>
+  </div>
+</footer>
+
+<script>
+  // State
+  let selectedCourt = null;
+  let selectedTime = null;
+  const bookedSlots = { 3: ['08:00','10:00'], 7: ['14:00','16:00'] };
+
+  // Set today as default date
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth()+1).padStart(2,'0');
+  const dd = String(today.getDate()).padStart(2,'0');
+  document.getElementById('bookDate').value = `${yyyy}-${mm}-${dd}`;
+  document.getElementById('bookDate').min = `${yyyy}-${mm}-${dd}`;
+
+  // Generate courts
+  function renderCourts() {
+    const grid = document.getElementById('courtsGrid');
+    grid.innerHTML = '';
+    for (let i = 1; i <= 10; i++) {
+      const isBooked = bookedSlots[i] && selectedTime && bookedSlots[i].includes(selectedTime);
+      const isSelected = selectedCourt === i;
+      const status = isBooked ? 'booked' : isSelected ? 'selected' : 'available';
+      const statusLabel = isBooked ? 'Taken' : isSelected ? 'Selected' : 'Available';
+      grid.innerHTML += `
+        <div class="court-card ${status}" onclick="selectCourt(${i}, '${status}')">
+          <div class="court-num">${i}</div>
+          <div class="court-label">Court</div>
+          <div class="court-status">${statusLabel}</div>
+        </div>`;
+    }
+  }
+
+  // Generate time slots
+  function renderTimeSlots() {
+    const slots = document.getElementById('timeSlots');
+    const times = ['06:00','07:00','08:00','09:00','10:00','11:00','12:00','13:00',
+                   '14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+    slots.innerHTML = '';
+    times.forEach(t => {
+      const taken = selectedCourt && bookedSlots[selectedCourt] && bookedSlots[selectedCourt].includes(t);
+      const sel = selectedTime === t;
+      const label = formatTime(t);
+      slots.innerHTML += `
+        <div class="time-slot ${taken?'taken':''} ${sel?'selected':''}" 
+             onclick="${taken ? '' : `selectTime('${t}')`}">
+          ${label}
+        </div>`;
+    });
+  }
+
+  function formatTime(t) {
+    const [h,m] = t.split(':');
+    const hr = parseInt(h);
+    return hr >= 12 ? `${hr===12?12:hr-12}:${m}PM` : `${hr}:${m}AM`;
+  }
+
+  function selectCourt(num, status) {
+    if (status === 'booked') return;
+    selectedCourt = num;
+    renderCourts();
+    renderTimeSlots();
+    updateConfirmPanel();
+  }
+
+  function selectTime(time) {
+    selectedTime = time;
+    renderTimeSlots();
+    updateConfirmPanel();
+  }
+
+  function updateConfirmPanel() {
+    const panel = document.getElementById('confirmPanel');
+    if (selectedCourt && selectedTime) {
+      const dur = parseInt(document.getElementById('bookDuration').value);
+      const players = document.getElementById('bookPlayers').value;
+      const dateVal = document.getElementById('bookDate').value;
+      const price = dur * 500;
+      const endHour = parseInt(selectedTime.split(':')[0]) + dur;
+      const endTime = `${String(endHour).padStart(2,'0')}:00`;
+
+      document.getElementById('cpCourt').textContent = `Court ${selectedCourt}`;
+      document.getElementById('cpDate').textContent = dateVal;
+      document.getElementById('cpTime').textContent = `${formatTime(selectedTime)}–${formatTime(endTime)}`;
+      document.getElementById('cpPlayers').textContent = `${players} Players`;
+      document.getElementById('cpPrice').innerHTML = `₱${price.toLocaleString()} <span>total</span>`;
+
+      document.getElementById('mCourt').textContent = `Court ${selectedCourt}`;
+      document.getElementById('mDate').textContent = dateVal;
+      document.getElementById('mTime').textContent = `${formatTime(selectedTime)} – ${formatTime(endTime)}`;
+      document.getElementById('mPrice').textContent = `₱${price.toLocaleString()}`;
+
+      panel.classList.add('visible');
+    } else {
+      panel.classList.remove('visible');
+    }
+  }
+
+  function checkAvailability() {
+    renderCourts();
+    renderTimeSlots();
+    document.getElementById('courts').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  function updateSlots() { renderCourts(); renderTimeSlots(); }
+  function updatePrice() { updateConfirmPanel(); }
+
+  function openModal() {
+    document.getElementById('modalOverlay').classList.add('open');
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+    document.getElementById('modalContent').innerHTML = getFormHTML();
+  }
+
+  function getFormHTML() {
+    const dur = parseInt(document.getElementById('bookDuration').value);
+    const price = dur * 500;
+    const endHour = selectedTime ? parseInt(selectedTime.split(':')[0]) + dur : 0;
+    const endTime = selectedTime ? `${String(endHour).padStart(2,'0')}:00` : '';
+    const dateVal = document.getElementById('bookDate').value;
+    return `
+      <div class="modal-title">Complete Booking</div>
+      <div class="modal-field">
+        <label class="field-label">Full Name</label>
+        <input type="text" class="field-input" id="custName" placeholder="Juan dela Cruz" style="margin-top:8px;">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Phone Number</label>
+        <input type="tel" class="field-input" id="custPhone" placeholder="+63 9XX XXX XXXX" style="margin-top:8px;">
+      </div>
+      <div class="modal-field">
+        <label class="field-label">Email (optional)</label>
+        <input type="email" class="field-input" id="custEmail" placeholder="juan@email.com" style="margin-top:8px;">
+      </div>
+      <div style="margin-top:12px;padding:16px;background:var(--dark3);border:1px solid rgba(34,197,94,0.1);">
+        <div class="summary-row"><span class="summary-key">Court</span><span class="summary-val">Court ${selectedCourt}</span></div>
+        <div class="summary-row"><span class="summary-key">Date</span><span class="summary-val">${dateVal}</span></div>
+        <div class="summary-row"><span class="summary-key">Time</span><span class="summary-val">${formatTime(selectedTime)} – ${formatTime(endTime)}</span></div>
+        <div class="summary-row"><span class="summary-key">Total</span><span class="summary-val green">₱${price.toLocaleString()}</span></div>
+      </div>
+      <button class="btn-primary" onclick="submitBooking()" style="width:100%;margin-top:20px;font-size:15px;padding:16px;clip-path:none;">
+        Confirm Booking →
+      </button>`;
+  }
+
+  function submitBooking() {
+    const name = document.getElementById('custName')?.value?.trim();
+    const phone = document.getElementById('custPhone')?.value?.trim();
+    if (!name || !phone) { alert('Please enter your name and phone number.'); return; }
+
+    const dur = parseInt(document.getElementById('bookDuration').value);
+    const price = dur * 500;
+    const ref = 'PB-' + Date.now().toString().slice(-8);
+
+    document.getElementById('modalContent').innerHTML = `
+      <div class="success-screen">
+        <div class="success-icon">✓</div>
+        <div class="success-title">Booking Confirmed!</div>
+        <div class="success-sub">You're all set. See you on the court!</div>
+        <div class="booking-summary">
+          <div class="summary-row"><span class="summary-key">Ref #</span><span class="summary-val green">${ref}</span></div>
+          <div class="summary-row"><span class="summary-key">Name</span><span class="summary-val">${name}</span></div>
+          <div class="summary-row"><span class="summary-key">Court</span><span class="summary-val">Court ${selectedCourt}</span></div>
+          <div class="summary-row"><span class="summary-key">Date</span><span class="summary-val">${document.getElementById('bookDate').value}</span></div>
+          <div class="summary-row"><span class="summary-key">Time</span><span class="summary-val">${formatTime(selectedTime)}</span></div>
+          <div class="summary-row"><span class="summary-key">Amount</span><span class="summary-val green">₱${price.toLocaleString()}</span></div>
+        </div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:20px;">A confirmation will be sent to ${phone}</p>
+        <button class="btn-primary" onclick="closeModal()" style="clip-path:none;padding:12px 28px;">Done</button>
+      </div>`;
+
+    // Mark court as booked
+    if (!bookedSlots[selectedCourt]) bookedSlots[selectedCourt] = [];
+    bookedSlots[selectedCourt].push(selectedTime);
+    document.getElementById('confirmPanel').classList.remove('visible');
+    selectedCourt = null; selectedTime = null;
+    renderCourts(); renderTimeSlots();
+  }
+
+  function scrollToBook() {
+    document.getElementById('book').scrollIntoView({ behavior: 'smooth' });
+  }
+
+  // Init
+  renderCourts();
+  renderTimeSlots();
+</script>
+</body>
+</html>
