@@ -1,0 +1,75 @@
+.nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 40px;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(34,197,94,0.15);
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logoText {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 2px;
+  color: var(--green);
+  text-transform: uppercase;
+}
+
+.logoSub {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  display: block;
+  margin-top: -4px;
+}
+
+.links {
+  display: flex;
+  gap: 32px;
+  list-style: none;
+  align-items: center;
+}
+
+.links a {
+  color: var(--text-light);
+  font-size: 13px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.links a:hover { color: var(--green); }
+
+.cta {
+  background: var(--green);
+  color: var(--black) !important;
+  padding: 8px 20px;
+  font-weight: 700 !important;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+}
+
+.ctaActive {
+  background: var(--green-bright);
+  color: var(--black) !important;
+  padding: 8px 20px;
+  font-weight: 700 !important;
+  clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+}
+
+@media (max-width: 768px) {
+  .nav { padding: 16px 20px; }
+  .links { display: none; }
+}
