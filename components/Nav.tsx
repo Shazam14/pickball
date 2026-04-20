@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import Image from 'next/image'
 import { usePathname } from 'next/navigation'
+import LogoSVG from './LogoSVG'
 import styles from './Nav.module.css'
 
 export default function Nav() {
@@ -11,7 +11,7 @@ export default function Nav() {
   return (
     <nav className={styles.nav}>
       <Link href="/" className={styles.logo}>
-        <Image src="/logo-white.png" alt="SideOut Pickleball" width={160} height={60} priority />
+        <LogoSVG width={200} />
       </Link>
 
       <ul className={styles.links}>

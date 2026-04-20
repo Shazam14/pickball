@@ -7,18 +7,34 @@
   padding: 120px 40px 80px;
   overflow: hidden;
 }
-.heroGlow {
-  position: absolute;
-  width: 600px; height: 600px;
-  background: radial-gradient(circle, rgba(34,197,94,0.12) 0%, transparent 70%);
-  top: 50%; right: 5%;
-  transform: translateY(-50%);
-  pointer-events: none;
+.heroInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 48px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 .heroContent {
   position: relative;
   z-index: 1;
-  max-width: 640px;
+  flex: 1;
+  max-width: 580px;
+}
+.heroVisual {
+  flex: 0 0 auto;
+  width: 420px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.heroImage {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  opacity: 0.92;
+  filter: drop-shadow(0 0 80px rgba(34,197,94,0.25));
 }
 .heroLogo {
   display: block;
@@ -65,7 +81,7 @@
   color: var(--text-light);
   font-weight: 400;
 }
-.infoIcon { font-size: 18px; }
+.infoIcon { display: flex; align-items: center; color: var(--green); }
 .infoDivider {
   width: 1px;
   height: 32px;
@@ -106,7 +122,7 @@
   transition: border-color 0.2s;
 }
 .facilityCard:hover { border-color: rgba(34,197,94,0.3); }
-.facilityIcon { font-size: 36px; margin-bottom: 16px; }
+.facilityIcon { width: 44px; height: 44px; color: var(--green); margin-bottom: 20px; display: flex; align-items: center; }
 .facilityName {
   font-family: var(--font-barlow-condensed), sans-serif;
   font-size: 22px;
@@ -177,7 +193,7 @@
   height: 2px;
   background: var(--green);
 }
-.priceIcon { font-size: 32px; margin-bottom: 16px; }
+.priceIcon { width: 44px; height: 44px; color: var(--green); margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; }
 .priceName {
   font-size: 12px;
   letter-spacing: 2px;
@@ -252,18 +268,33 @@
   justify-content: space-between;
   gap: 24px;
 }
+.footerLogo {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--white);
+}
+.footerLogoGreen { color: var(--green); }
 .footerLeft { display: flex; flex-direction: column; gap: 8px; }
 .footerAddress { font-size: 13px; color: var(--text-muted); }
 .footerRight { display: flex; flex-direction: column; gap: 4px; text-align: right; }
 .footerText { font-size: 13px; color: var(--text-muted); }
 
 /* RESPONSIVE */
+@media (max-width: 1024px) {
+  .heroVisual { width: 320px; }
+}
 @media (max-width: 900px) {
   .facilitiesGrid { grid-template-columns: 1fr 1fr; }
   .stepsGrid { grid-template-columns: 1fr 1fr; }
+  .heroVisual { width: 260px; }
 }
 @media (max-width: 768px) {
   .hero { padding: 100px 20px 60px; }
+  .heroInner { flex-direction: column-reverse; gap: 24px; }
+  .heroVisual { width: 200px; opacity: 0.7; }
   .infoStrip { padding: 16px 20px; flex-direction: column; gap: 0; }
   .infoDivider { width: 80%; height: 1px; }
   .infoItem { padding: 8px 0; }
