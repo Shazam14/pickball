@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import Nav from '@/components/Nav'
-import LogoSVG from '@/components/LogoSVG'
+import Image from 'next/image'
 import styles from './page.module.css'
 
 function HeroGraphic() {
@@ -260,7 +260,7 @@ export default function Home() {
       {/* FOOTER */}
       <footer className={styles.footer}>
         <div className={styles.footerLeft}>
-          <LogoSVG width={160} />
+          <Image src="/sideout_test_white.svg" alt="SideOut Pickleball" width={160} height={48} />
           <div className={styles.footerAddress}>Brgy Alang-Alang, Mandaue City, Cebu 6014</div>
         </div>
         <div className={styles.footerRight}>
