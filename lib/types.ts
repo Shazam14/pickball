@@ -1,6 +1,6 @@
 export type BookingStatus = 'locked' | 'confirmed' | 'cancelled' | 'expired'
 
-export type PaymentMethod = 'gcash' | 'maya' | 'bpi'
+export type PaymentMethod = 'gcash' | 'maya' | 'gotyme'
 
 export interface Booking {
   id: string

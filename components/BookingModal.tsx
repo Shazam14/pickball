@@ -41,10 +41,10 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; color: string; instru
     instructions: 'Scan the QR code with your Maya app or send to 09XX XXX XXXX. Enter your reference number below.',
   },
   {
-    id: 'bpi',
-    label: 'BPI',
-    color: '#c8102e',
-    instructions: 'Transfer via BPI Online to Account No. XXXX-XXXX-XX (SideOut Cebu). Enter your reference number below.',
+    id: 'gotyme',
+    label: 'GoTyme',
+    color: '#f59e0b',
+    instructions: 'Transfer via GoTyme Bank to Account No. XXXX-XXXX-XX (SideOut Cebu). Enter your reference number below.',
   },
 ]
 
@@ -120,9 +120,6 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
           <div className={styles.summaryRow}>
             <span>Time</span><span>{formatTime(details.startTime)} – {formatTime(details.endTime)}</span>
           </div>
-          <div className={styles.summaryRow}>
-            <span>Players</span><span>{details.players}</span>
-          </div>
           <div className={`${styles.summaryRow} ${styles.total}`}>
             <span>Total</span><span>₱{details.price.toLocaleString()}</span>
           </div>
@@ -184,7 +181,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
                 <div className={styles.qrPlaceholder}>
                   <div className={styles.qrInner}>
                     <span style={{ fontSize: 32 }}>
-                      {method === 'gcash' ? '💙' : method === 'maya' ? '💜' : '🏦'}
+                      {method === 'gcash' ? '💙' : method === 'maya' ? '💜' : method === 'gotyme' ? '🏦' : ''}
                     </span>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, letterSpacing: 1 }}>
                       QR CODE

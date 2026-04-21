@@ -137,12 +137,19 @@ export default function Home() {
               10 professional courts · Open 24/7 · Instant booking
             </p>
             <div className={styles.heroBtns}>
-              <Link href="/booking" className="btn-primary" style={{ fontSize: 18, padding: '16px 48px' }}>
+              <Link href="/booking" className="btn-primary" style={{ fontSize: 20, padding: '18px 56px', letterSpacing: 3 }}>
                 Reserve a Court
               </Link>
               <Link href="#facilities" className="btn-outline">
-                Our Facilities
+                View Facilities
               </Link>
+            </div>
+            <div className={styles.heroMeta}>
+              <span>₱700/hr</span>
+              <span className={styles.heroDot}>·</span>
+              <span>₱50 entrance</span>
+              <span className={styles.heroDot}>·</span>
+              <span>GCash · Maya · GoTyme</span>
             </div>
           </div>
           <div className={styles.heroVisual}>
@@ -177,19 +184,22 @@ export default function Home() {
           <div className={styles.facilitiesGrid}>
             <div className={styles.facilityCard}>
               <div className={styles.facilityIcon}><IconPaddle /></div>
-              <div className={styles.facilityName}>Courts</div>
-              <div className={styles.facilityDesc}>10 professional-grade pickleball courts with proper lighting for day and night play.</div>
+              <div className={styles.facilityName}>10 Courts</div>
+              <div className={styles.facilityDesc}>Professional-grade pickleball courts with full lighting — playable day and night, 24/7.</div>
             </div>
             <div className={styles.facilityCard}>
               <div className={styles.facilityIcon}><IconRestroom /></div>
-              <div className={styles.facilityName}>Restrooms</div>
-              <div className={styles.facilityDesc}>Clean, well-maintained comfort rooms available for all players and guests.</div>
+              <div className={styles.facilityName}>Comfort Rooms</div>
+              <div className={styles.facilityDesc}>Clean, well-maintained restrooms available at all times for players and guests.</div>
             </div>
             <div className={styles.facilityCard}>
               <div className={styles.facilityIcon}><IconCafe /></div>
               <div className={styles.facilityName}>Café</div>
-              <div className={styles.facilityDesc}>On-site café serving refreshments, snacks, and drinks to keep you energized.</div>
+              <div className={styles.facilityDesc}>On-site café with refreshments, snacks, and drinks to keep you fueled all game long.</div>
             </div>
+          </div>
+          <div className={styles.facilitiesCta}>
+            <Link href="/booking" className="btn-primary">Reserve a Court Now</Link>
           </div>
         </div>
       </section>
@@ -238,9 +248,18 @@ export default function Home() {
           <div className={styles.paymentMethods}>
             <div className={styles.paymentLabel}>Accepted Payments</div>
             <div className={styles.paymentIcons}>
-              <span className={styles.paymentBadge}>GCash</span>
-              <span className={styles.paymentBadge}>Maya</span>
-              <span className={styles.paymentBadge}>GoTyme</span>
+              <div className={styles.paymentBadge}>
+                <span className={styles.paymentName}>GCash</span>
+                <span className={styles.paymentType}>E-Wallet</span>
+              </div>
+              <div className={styles.paymentBadge}>
+                <span className={styles.paymentName}>Maya</span>
+                <span className={styles.paymentType}>E-Wallet</span>
+              </div>
+              <div className={styles.paymentBadge}>
+                <span className={styles.paymentName}>GoTyme</span>
+                <span className={styles.paymentType}>Bank Transfer</span>
+              </div>
             </div>
           </div>
         </div>

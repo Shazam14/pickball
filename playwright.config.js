@@ -6,8 +6,13 @@ export default defineConfig({
   use: {
     baseURL: 'https://pickball.vercel.app',
     screenshot: 'on',
+    video: 'on',
   },
   projects: [
+    {
+      name: 'Desktop Chrome',
+      use: { ...devices['Desktop Chrome'] },
+    },
     {
       name: 'iPhone SE',
       use: { ...devices['iPhone SE'] },

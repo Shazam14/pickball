@@ -1,18 +1,29 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
 import BookingModal from '@/components/BookingModal'
 import { TIME_SLOTS, TOTAL_COURTS, COURT_PRICE_PER_HOUR } from '@/lib/types'
+import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
 type SlotMatrix = Record<string, { court: number; available: boolean }[]>
+type TimeStatus = 'available' | 'limited' | 'booked'
 
 function formatTime(t: string) {
-  const [h] = t.split(':')
-  const hr = parseInt(h)
-  return hr >= 12 ? `${hr === 12 ? 12 : hr - 12}:00 ${hr >= 12 ? 'PM' : 'AM'}` : `${hr}:00 AM`
+  const hr = parseInt(t.split(':')[0])
+  if (hr === 0) return '12:00 AM'
+  if (hr < 12) return `${hr}:00 AM`
+  if (hr === 12) return '12:00 PM'
+  return `${hr - 12}:00 PM`
+}
+
+function formatTimeShort(t: string) {
+  const hr = parseInt(t.split(':')[0])
+  if (hr < 12) return `${hr}AM`
+  if (hr === 12) return '12PM'
+  return `${hr - 12}PM`
 }
 
 function today() {
@@ -20,87 +31,155 @@ function today() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
-interface LockResponse {
-  bookingId: string
-  reference: string
-  lockedUntil: string
+function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
+  if (!slots[time]) return 'available'
+  const count = slots[time].filter(s => s.available).length
+  if (count === 0) return 'booked'
+  if (count <= 3) return 'limited'
+  return 'available'
 }
 
+function hourOf(t: string) { return parseInt(t.split(':')[0]) }
+function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
+
+interface LockResponse { bookingId: string; reference: string; lockedUntil: string }
 interface SuccessData {
-  reference: string
-  courtNumber: number
-  bookingDate: string
-  startTime: string
-  endTime: string
-  duration: number
-  players: number
-  price: number
+  reference: string; courtNumber: number; bookingDate: string
+  startTime: string; endTime: string; duration: number; price: number
 }
 
 export default function BookingPage() {
   const [date, setDate] = useState(today())
-  const [duration, setDuration] = useState(2)
-  const [players, setPlayers] = useState(4)
   const [slots, setSlots] = useState<SlotMatrix>({})
   const [loading, setLoading] = useState(false)
-  const [checked, setChecked] = useState(false)
 
   const [selectedCourt, setSelectedCourt] = useState<number | null>(null)
-  const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [selectedStart, setSelectedStart] = useState<string | null>(null)
+  const [selectedEnd, setSelectedEnd] = useState<string | null>(null)
 
   const [locking, setLocking] = useState(false)
   const [lockError, setLockError] = useState('')
-
   const [lockData, setLockData] = useState<LockResponse | null>(null)
-  const [customerName, setCustomerName] = useState('')
-  const [customerPhone, setCustomerPhone] = useState('')
-  const [customerEmail, setCustomerEmail] = useState('')
   const [showModal, setShowModal] = useState(false)
-
   const [success, setSuccess] = useState<SuccessData | null>(null)
 
-  const fetchAvailability = useCallback(async () => {
+  const duration = selectedStart && selectedEnd
+    ? hourOf(selectedEnd) - hourOf(selectedStart)
+    : selectedStart ? 1 : 0
+
+  const endTime = selectedEnd ?? (selectedStart ? toTime(hourOf(selectedStart) + 1) : null)
+  const price = duration * COURT_PRICE_PER_HOUR
+
+  const fetchAvailability = useCallback(async (d: string) => {
     setLoading(true)
-    setChecked(false)
     setSelectedCourt(null)
-    setSelectedTime(null)
+    setSelectedStart(null)
+    setSelectedEnd(null)
     try {
-      const res = await fetch(`/api/availability?date=${date}&duration=${duration}`)
+      const res = await fetch(`/api/availability?date=${d}&duration=1`)
       const data = await res.json()
       setSlots(data.slots || {})
-      setChecked(true)
     } finally {
       setLoading(false)
     }
-  }, [date, duration])
+  }, [])
 
-  // Auto-fetch on mount
-  useEffect(() => { fetchAvailability() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { fetchAvailability(date) }, [date, fetchAvailability])
 
-  const isCourtAvailableAtTime = (court: number, time: string) => {
-    return slots[time]?.find(s => s.court === court)?.available ?? true
+  // Realtime: re-fetch when any booking is locked/confirmed for this date
+  const channelRef = useRef<ReturnType<typeof getSupabase>['channel'] extends (...args: any[]) => infer R ? R : never | null>(null)
+  useEffect(() => {
+    const supabase = getSupabase()
+    if (channelRef.current) supabase.removeChannel(channelRef.current)
+
+    channelRef.current = supabase
+      .channel(`bookings:${date}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'bookings', filter: `booking_date=eq.${date}` },
+        () => { fetchAvailability(date) }
+      )
+      .subscribe()
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current)
+    }
+  }, [date, fetchAvailability])
+
+  const isSlotTaken = (court: number, time: string) =>
+    !(slots[time]?.find(s => s.court === court)?.available ?? true)
+
+  const isSegmentBooked = (t: string) => {
+    if (selectedCourt && isSlotTaken(selectedCourt, t)) return true
+    return getTimeStatus(t, slots) === 'booked'
+  }
+
+  // Check all hours in a range are free
+  const isRangeClear = (startH: number, endH: number) => {
+    for (let h = startH; h < endH; h++) {
+      if (isSegmentBooked(toTime(h))) return false
+    }
+    return true
+  }
+
+  const handleTimeClick = (time: string) => {
+    if (isSegmentBooked(time)) return
+    setLockError('')
+
+    if (!selectedStart) {
+      setSelectedStart(time)
+      setSelectedEnd(null)
+      return
+    }
+
+    const clickedH = hourOf(time)
+    const startH = hourOf(selectedStart)
+
+    if (clickedH === startH) {
+      // Tap same slot → deselect
+      setSelectedStart(null)
+      setSelectedEnd(null)
+      return
+    }
+
+    if (clickedH < startH) {
+      // Tapped before start → restart from here
+      setSelectedStart(time)
+      setSelectedEnd(null)
+      return
+    }
+
+    // Tapped after start → try to extend range
+    if (isRangeClear(startH, clickedH + 1)) {
+      setSelectedEnd(toTime(clickedH + 1))
+    } else {
+      // Range has a booked slot — restart from tapped time
+      setSelectedStart(time)
+      setSelectedEnd(null)
+    }
+  }
+
+  const isInRange = (t: string) => {
+    if (!selectedStart) return false
+    const h = hourOf(t)
+    const startH = hourOf(selectedStart)
+    const endH = selectedEnd ? hourOf(selectedEnd) : startH + 1
+    return h >= startH && h < endH
   }
 
   const handleCourtSelect = (court: number) => {
-    if (selectedTime && !isCourtAvailableAtTime(court, selectedTime)) return
-    setSelectedCourt(court === selectedCourt ? null : court)
+    setSelectedCourt(prev => prev === court ? null : court)
+    setSelectedStart(null)
+    setSelectedEnd(null)
     setLockError('')
   }
 
-  const handleTimeSelect = (time: string) => {
-    if (selectedCourt && !isCourtAvailableAtTime(selectedCourt, time)) return
-    setSelectedTime(time === selectedTime ? null : time)
-    setLockError('')
-  }
-
-  const isSlotTaken = (court: number, time: string) => {
-    return !(slots[time]?.find(s => s.court === court)?.available ?? true)
-  }
-
-  const price = duration * COURT_PRICE_PER_HOUR
+  const availableCourtsForTime = selectedStart
+    ? (slots[selectedStart] || []).filter(s => s.available).map(s => s.court)
+    : Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)
 
   async function handleLockAndPay() {
-    if (!selectedCourt || !selectedTime) return
+    if (!selectedCourt || !selectedStart || !endTime) return
     setLocking(true)
     setLockError('')
     try {
@@ -110,19 +189,15 @@ export default function BookingPage() {
         body: JSON.stringify({
           court_number: selectedCourt,
           booking_date: date,
-          start_time: selectedTime,
+          start_time: selectedStart,
           duration,
-          players,
-          customer_name: customerName || 'Guest',
-          customer_phone: customerPhone || '0000000000',
-          customer_email: customerEmail || undefined,
+          players: 4,
+          customer_name: 'Guest',
+          customer_phone: '0000000000',
         }),
       })
       const data = await res.json()
-      if (!res.ok) {
-        setLockError(data.error || 'Could not lock slot. Please try again.')
-        return
-      }
+      if (!res.ok) { setLockError(data.error || 'Could not lock slot. Try again.'); return }
       setLockData({ bookingId: data.booking_id, reference: data.reference, lockedUntil: data.locked_until })
       setShowModal(true)
     } finally {
@@ -131,45 +206,18 @@ export default function BookingPage() {
   }
 
   function handleExpire() {
-    setShowModal(false)
-    setLockData(null)
-    setSelectedCourt(null)
-    setSelectedTime(null)
-    fetchAvailability()
+    setShowModal(false); setLockData(null)
+    setSelectedStart(null); setSelectedEnd(null)
+    fetchAvailability(date)
     setLockError('Your 5-minute hold expired. Please select a slot again.')
   }
 
   function handleSuccess(reference: string) {
     setShowModal(false)
-    const startHour = parseInt(selectedTime!.split(':')[0])
-    setSuccess({
-      reference,
-      courtNumber: selectedCourt!,
-      bookingDate: date,
-      startTime: selectedTime!,
-      endTime: `${String(startHour + duration).padStart(2, '0')}:00`,
-      duration,
-      players,
-      price,
-    })
-    setSelectedCourt(null)
-    setSelectedTime(null)
-    fetchAvailability()
+    setSuccess({ reference, courtNumber: selectedCourt!, bookingDate: date, startTime: selectedStart!, endTime: endTime!, duration, price })
+    setSelectedCourt(null); setSelectedStart(null); setSelectedEnd(null)
+    fetchAvailability(date)
   }
-
-  // Available courts for the selected time
-  const availableCourtsForTime = selectedTime
-    ? (slots[selectedTime] || []).filter(s => s.available).map(s => s.court)
-    : Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)
-
-  // Available times for the selected court
-  const availableTimesForCourt = selectedCourt
-    ? TIME_SLOTS.filter(t => {
-        const startHour = parseInt(t.split(':')[0])
-        if (startHour + duration > 22) return false
-        return isCourtAvailableAtTime(selectedCourt, t)
-      })
-    : TIME_SLOTS.filter(t => parseInt(t.split(':')[0]) + duration <= 22)
 
   if (success) {
     return (
@@ -179,19 +227,17 @@ export default function BookingPage() {
           <div className={styles.successCard}>
             <div className={styles.successIcon}>✓</div>
             <div className={styles.successTitle}>Booking Confirmed!</div>
-            <div className={styles.successSub}>See you on the court. Check your phone/email for confirmation.</div>
+            <div className={styles.successSub}>See you on the court. Check your phone for confirmation.</div>
             <div className={styles.successSummary}>
               <div className={styles.sRow}><span>Ref #</span><span className={styles.green}>{success.reference}</span></div>
               <div className={styles.sRow}><span>Court</span><span>Court {success.courtNumber}</span></div>
               <div className={styles.sRow}><span>Date</span><span>{success.bookingDate}</span></div>
-              <div className={styles.sRow}><span>Time</span><span>{formatTime(success.startTime)} – {formatTime(success.endTime)}</span></div>
-              <div className={styles.sRow}><span>Players</span><span>{success.players}</span></div>
-              <div className={styles.sRow}><span>Amount Paid</span><span className={styles.green}>₱{success.price.toLocaleString()}</span></div>
+              <div className={styles.sRow}><span>Time</span><span>{formatTime(success.startTime)} — {formatTime(success.endTime)}</span></div>
+              <div className={styles.sRow}><span>Duration</span><span>{success.duration}h</span></div>
+              <div className={styles.sRow}><span>Amount Due</span><span className={styles.green}>₱{success.price.toLocaleString()}</span></div>
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button className="btn-primary" style={{ clipPath: 'none' }} onClick={() => setSuccess(null)}>
-                Book Another
-              </button>
+              <button className="btn-primary" style={{ clipPath: 'none' }} onClick={() => setSuccess(null)}>Book Another</button>
               <Link href="/" className="btn-outline" style={{ clipPath: 'none' }}>Back to Home</Link>
             </div>
           </div>
@@ -210,138 +256,98 @@ export default function BookingPage() {
           <div className={styles.pageTitle}>Book a Court</div>
         </div>
 
-        {/* FILTERS */}
-        <div className={styles.filters}>
-          <div className={styles.filterGroup}>
-            <label className="field-label">Date</label>
-            <input
-              type="date"
-              className="field-input"
-              value={date}
-              min={today()}
-              onChange={e => { setDate(e.target.value); setChecked(false); setSelectedCourt(null); setSelectedTime(null) }}
-            />
+        {/* DATE */}
+        <div className={styles.datePicker}>
+          <label className="field-label">Select Date</label>
+          <div className={styles.dateRow}>
+            <input type="date" className="field-input" style={{ maxWidth: 260 }} value={date} min={today()} onChange={e => setDate(e.target.value)} />
+            {loading && <span className={styles.loadingText}>Checking availability…</span>}
           </div>
-          <div className={styles.filterGroup}>
-            <label className="field-label">Duration</label>
-            <select className="field-input" value={duration} onChange={e => { setDuration(+e.target.value); setChecked(false); setSelectedCourt(null); setSelectedTime(null) }}>
-              <option value={1}>1 Hour — ₱500</option>
-              <option value={2}>2 Hours — ₱1,000</option>
-              <option value={3}>3 Hours — ₱1,500</option>
-            </select>
-          </div>
-          <div className={styles.filterGroup}>
-            <label className="field-label">Players</label>
-            <select className="field-input" value={players} onChange={e => setPlayers(+e.target.value)}>
-              <option value={2}>2 Players</option>
-              <option value={4}>4 Players</option>
-            </select>
-          </div>
-          <button className="btn-primary" onClick={fetchAvailability} disabled={loading} style={{ alignSelf: 'flex-end', whiteSpace: 'nowrap' }}>
-            {loading ? 'Checking...' : 'Check Availability'}
-          </button>
         </div>
 
-        {checked && (
-          <>
-            {/* COURT GRID */}
-            <div className={styles.courtSection}>
-              <div className={styles.sectionLabel}>— Select Your Court</div>
-              <div className={styles.courtGrid}>
-                {Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1).map(c => {
-                  const available = availableCourtsForTime.includes(c)
-                  const selected = selectedCourt === c
-                  return (
-                    <div
-                      key={c}
-                      className={`${styles.courtCard} ${!available ? styles.courtTaken : ''} ${selected ? styles.courtSelected : ''}`}
-                      onClick={() => available && handleCourtSelect(c)}
-                    >
-                      <div className={styles.courtNum}>{c}</div>
-                      <div className={styles.courtLabel}>Court</div>
-                      <div className={styles.courtStatus}>
-                        {selected ? 'Selected' : available ? 'Available' : 'Taken'}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+        {/* LEGEND */}
+        <div className={styles.legend}>
+          <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotGreen}`} />Available</div>
+          <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotYellow}`} />Limited</div>
+          <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotRed}`} />Fully Booked</div>
+        </div>
 
-            {/* TIME SLOTS */}
-            <div className={styles.timeSection}>
-              <div className={styles.sectionLabel}>— Pick Your Time</div>
-              <div className={styles.timeGrid}>
-                {TIME_SLOTS.filter(t => parseInt(t.split(':')[0]) + duration <= 22).map(t => {
-                  const taken = selectedCourt ? isSlotTaken(selectedCourt, t) : false
-                  const available = availableTimesForCourt.includes(t)
-                  const selected = selectedTime === t
-                  return (
-                    <div
-                      key={t}
-                      className={`${styles.timeSlot} ${taken || !available ? styles.timeTaken : ''} ${selected ? styles.timeSelected : ''}`}
-                      onClick={() => !taken && available && handleTimeSelect(t)}
-                    >
-                      {formatTime(t)}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          </>
-        )}
+        {/* STEP 1 */}
+        <div className={styles.courtSection}>
+          <div className={styles.sectionLabel}>01 — Select Court</div>
+          <div className={styles.courtGrid}>
+            {Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1).map(c => {
+              const available = availableCourtsForTime.includes(c)
+              const selected = selectedCourt === c
+              return (
+                <div key={c} className={`${styles.courtCard} ${!available ? styles.courtTaken : ''} ${selected ? styles.courtSelected : ''}`} onClick={() => available && handleCourtSelect(c)}>
+                  <div className={styles.courtNum}>{c}</div>
+                  <div className={styles.courtLabel}>Court</div>
+                  <div className={styles.courtStatus}>{selected ? 'Selected' : available ? 'Available' : 'Taken'}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
 
-        {/* CONFIRM PANEL */}
-        {selectedCourt && selectedTime && (
+        {/* STEP 2 */}
+        <div className={styles.timeSection}>
+          <div className={styles.sectionLabel}>02 — Select Time</div>
+          <div className={styles.timeHint}>
+            {!selectedStart
+              ? 'Tap a start time'
+              : !selectedEnd
+                ? <><span className={styles.hintGreen}>{formatTime(selectedStart)}</span> selected — tap an end time to extend, or tap again to deselect</>
+                : <><span className={styles.hintGreen}>{formatTime(selectedStart)} — {formatTime(selectedEnd)}</span> · {duration}h · ₱{price.toLocaleString()} · tap any slot to change</>
+            }
+          </div>
+
+          <div className={styles.timeline}>
+            {TIME_SLOTS.map(t => {
+              const booked = isSegmentBooked(t)
+              const status = booked ? 'booked' : getTimeStatus(t, slots)
+              const inRange = isInRange(t)
+              const isStart = t === selectedStart
+              const isEndSlot = selectedEnd ? hourOf(t) === hourOf(selectedEnd) - 1 : false
+              return (
+                <button
+                  key={t}
+                  className={`${styles.timeSegment} ${styles[`seg_${status}`]} ${inRange ? styles.segInRange : ''} ${isStart ? styles.segStart : ''} ${isEndSlot ? styles.segEnd : ''}`}
+                  onClick={() => handleTimeClick(t)}
+                  disabled={booked}
+                  title={formatTime(t)}
+                >
+                  <span className={styles.segLabel}>{formatTimeShort(t)}</span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* CONFIRM */}
+        {selectedCourt && selectedStart && (
           <div className={styles.confirmPanel}>
             <div className={styles.confirmDetails}>
-              <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>Court {selectedCourt}</div>
-                <div className={styles.confirmKey}>Court</div>
-              </div>
-              <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{date}</div>
-                <div className={styles.confirmKey}>Date</div>
-              </div>
-              <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{formatTime(selectedTime)}</div>
-                <div className={styles.confirmKey}>Start Time</div>
-              </div>
-              <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{duration}h · {players} players</div>
-                <div className={styles.confirmKey}>Duration</div>
-              </div>
+              <div className={styles.confirmItem}><div className={styles.confirmVal}>Court {selectedCourt}</div><div className={styles.confirmKey}>Court</div></div>
+              <div className={styles.confirmItem}><div className={styles.confirmVal}>{date}</div><div className={styles.confirmKey}>Date</div></div>
+              <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(selectedStart)}</div><div className={styles.confirmKey}>Start</div></div>
+              <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(endTime!)}</div><div className={styles.confirmKey}>End</div></div>
+              <div className={styles.confirmItem}><div className={styles.confirmVal}>{duration}h</div><div className={styles.confirmKey}>Duration</div></div>
             </div>
             <div className={styles.confirmRight}>
               <div className={styles.confirmPrice}>₱{price.toLocaleString()} <span>total</span></div>
               {lockError && <div className={styles.lockError}>{lockError}</div>}
-              <button
-                className="btn-primary"
-                onClick={handleLockAndPay}
-                disabled={locking}
-                style={{ fontSize: 14, padding: '14px 28px' }}
-              >
-                {locking ? 'Locking slot...' : '🔒 Confirm & Pay (5 min hold)'}
+              <button className="btn-primary" onClick={handleLockAndPay} disabled={locking} style={{ fontSize: 14, padding: '14px 28px' }}>
+                {locking ? 'Locking slot…' : 'Confirm & Pay — 5 min hold'}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {showModal && lockData && (
+      {showModal && lockData && selectedStart && endTime && (
         <BookingModal
-          details={{
-            bookingId: lockData.bookingId,
-            reference: lockData.reference,
-            lockedUntil: lockData.lockedUntil,
-            courtNumber: selectedCourt!,
-            bookingDate: date,
-            startTime: selectedTime!,
-            endTime: `${String(parseInt(selectedTime!.split(':')[0]) + duration).padStart(2, '0')}:00`,
-            duration,
-            players,
-            price,
-          }}
+          details={{ bookingId: lockData.bookingId, reference: lockData.reference, lockedUntil: lockData.lockedUntil, courtNumber: selectedCourt!, bookingDate: date, startTime: selectedStart, endTime: endTime, duration, players: 4, price }}
           onSuccess={handleSuccess}
           onExpire={handleExpire}
           onClose={() => setShowModal(false)}
