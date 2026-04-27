@@ -16,6 +16,8 @@ interface BookingDetails {
   duration: number
   players: number
   price: number
+  courtFee: number
+  entranceFee: number
 }
 
 interface Props {
@@ -25,7 +27,7 @@ interface Props {
   onClose: () => void
 }
 
-type Step = 'details' | 'payment' | 'reference'
+type Step = 'payment' | 'reference'
 
 const PAYMENT_METHODS: { id: PaymentMethod; label: string; color: string; instructions: string }[] = [
   {
@@ -55,10 +57,7 @@ function formatTime(t: string) {
 }
 
 export default function BookingModal({ details, onSuccess, onExpire, onClose }: Props) {
-  const [step, setStep] = useState<Step>('details')
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
+  const [step, setStep] = useState<Step>('payment')
   const [method, setMethod] = useState<PaymentMethod | null>(null)
   const [reference, setReference] = useState('')
   const [loading, setLoading] = useState(false)
@@ -120,46 +119,24 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
           <div className={styles.summaryRow}>
             <span>Time</span><span>{formatTime(details.startTime)} – {formatTime(details.endTime)}</span>
           </div>
+          <div className={styles.summaryRow}>
+            <span>Players</span><span>{details.players}</span>
+          </div>
+          <div className={styles.summaryRow}>
+            <span>Court ({details.duration}h)</span><span>₱{details.courtFee.toLocaleString()}</span>
+          </div>
+          <div className={styles.summaryRow}>
+            <span>Entrance ({details.players}× ₱50)</span><span>₱{details.entranceFee.toLocaleString()}</span>
+          </div>
           <div className={`${styles.summaryRow} ${styles.total}`}>
             <span>Total</span><span>₱{details.price.toLocaleString()}</span>
           </div>
         </div>
 
-        {/* Step 1: Customer details */}
-        {step === 'details' && (
-          <div>
-            <div className={styles.stepLabel}>Step 1 — Your Details</div>
-            <div className={styles.field}>
-              <label className="field-label">Full Name *</label>
-              <input className="field-input" value={name} onChange={e => setName(e.target.value)} placeholder="Juan dela Cruz" />
-            </div>
-            <div className={styles.field}>
-              <label className="field-label">Phone Number *</label>
-              <input className="field-input" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="+63 9XX XXX XXXX" />
-            </div>
-            <div className={styles.field}>
-              <label className="field-label">Email (for confirmation)</label>
-              <input className="field-input" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="juan@email.com" />
-            </div>
-            {error && <div className={styles.error}>{error}</div>}
-            <button
-              className="btn-primary"
-              style={{ width: '100%', clipPath: 'none', marginTop: 8 }}
-              onClick={() => {
-                if (!name.trim() || !phone.trim()) { setError('Name and phone are required.'); return }
-                setError('')
-                setStep('payment')
-              }}
-            >
-              Continue to Payment →
-            </button>
-          </div>
-        )}
-
-        {/* Step 2: Payment method */}
+        {/* Step 1: Payment method */}
         {step === 'payment' && (
           <div>
-            <div className={styles.stepLabel}>Step 2 — Choose Payment</div>
+            <div className={styles.stepLabel}>Step 1 — Choose Payment</div>
             <div className={styles.methodGrid}>
               {PAYMENT_METHODS.map(m => (
                 <button
@@ -209,10 +186,10 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
           </div>
         )}
 
-        {/* Step 3: Reference number */}
+        {/* Step 2: Reference number */}
         {step === 'reference' && (
           <div>
-            <div className={styles.stepLabel}>Step 3 — Confirm Payment</div>
+            <div className={styles.stepLabel}>Step 2 — Confirm Payment</div>
             <div className={styles.field}>
               <label className="field-label">{selectedMethod?.label} Reference Number *</label>
               <input

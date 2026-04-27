@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
 import BookingModal from '@/components/BookingModal'
-import { TIME_SLOTS, TOTAL_COURTS, COURT_PRICE_PER_HOUR } from '@/lib/types'
+import { TIME_SLOTS, TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
@@ -63,12 +63,25 @@ export default function BookingPage() {
   const [showModal, setShowModal] = useState(false)
   const [success, setSuccess] = useState<SuccessData | null>(null)
 
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [players, setPlayers] = useState(4)
+
   const duration = selectedStart && selectedEnd
     ? hourOf(selectedEnd) - hourOf(selectedStart)
     : selectedStart ? 1 : 0
 
   const endTime = selectedEnd ?? (selectedStart ? toTime(hourOf(selectedStart) + 1) : null)
-  const price = duration * COURT_PRICE_PER_HOUR
+  const courtFee = duration * COURT_PRICE_PER_HOUR
+  const entranceFee = players * ENTRANCE_FEE_PER_PERSON
+  const price = courtFee + entranceFee
+
+  const formValid =
+    customerName.trim().length > 0 &&
+    customerPhone.trim().length > 0 &&
+    customerEmail.trim().length > 0 &&
+    players >= 1
 
   const fetchAvailability = useCallback(async (d: string) => {
     setLoading(true)
@@ -179,7 +192,7 @@ export default function BookingPage() {
     : Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)
 
   async function handleLockAndPay() {
-    if (!selectedCourt || !selectedStart || !endTime) return
+    if (!selectedCourt || !selectedStart || !endTime || !formValid) return
     setLocking(true)
     setLockError('')
     try {
@@ -191,9 +204,10 @@ export default function BookingPage() {
           booking_date: date,
           start_time: selectedStart,
           duration,
-          players: 4,
-          customer_name: 'Guest',
-          customer_phone: '0000000000',
+          players,
+          customer_name: customerName.trim(),
+          customer_phone: customerPhone.trim(),
+          customer_email: customerEmail.trim() || undefined,
         }),
       })
       const data = await res.json()
@@ -216,6 +230,7 @@ export default function BookingPage() {
     setShowModal(false)
     setSuccess({ reference, courtNumber: selectedCourt!, bookingDate: date, startTime: selectedStart!, endTime: endTime!, duration, price })
     setSelectedCourt(null); setSelectedStart(null); setSelectedEnd(null)
+    setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4)
     fetchAvailability(date)
   }
 
@@ -324,21 +339,84 @@ export default function BookingPage() {
           </div>
         </div>
 
+        {/* STEP 3 — DETAILS */}
+        {selectedCourt && selectedStart && (
+          <div className={styles.detailsSection}>
+            <div className={styles.sectionLabel}>03 — Your Details</div>
+            <p className={styles.detailsNote}>
+              We&apos;ll email you a link to add your other players&apos; names — each player gets a QR gate pass for entry.
+            </p>
+            <div className={styles.detailsGrid}>
+              <div className={styles.field}>
+                <label className="field-label">Full Name *</label>
+                <input
+                  className="field-input"
+                  value={customerName}
+                  onChange={e => setCustomerName(e.target.value)}
+                  placeholder="Juan dela Cruz"
+                />
+              </div>
+              <div className={styles.field}>
+                <label className="field-label">Phone Number *</label>
+                <input
+                  className="field-input"
+                  type="tel"
+                  value={customerPhone}
+                  onChange={e => setCustomerPhone(e.target.value)}
+                  placeholder="+63 9XX XXX XXXX"
+                />
+              </div>
+              <div className={styles.field}>
+                <label className="field-label">Email *</label>
+                <input
+                  className="field-input"
+                  type="email"
+                  value={customerEmail}
+                  onChange={e => setCustomerEmail(e.target.value)}
+                  placeholder="juan@email.com"
+                />
+              </div>
+              <div className={styles.field}>
+                <label className="field-label">Players (₱{ENTRANCE_FEE_PER_PERSON} entrance / head)</label>
+                <div className={styles.stepper}>
+                  <button
+                    type="button"
+                    className={styles.stepperBtn}
+                    onClick={() => setPlayers(p => Math.max(1, p - 1))}
+                    disabled={players <= 1}
+                  >–</button>
+                  <span className={styles.stepperValue}>{players}</span>
+                  <button
+                    type="button"
+                    className={styles.stepperBtn}
+                    onClick={() => setPlayers(p => Math.min(20, p + 1))}
+                    disabled={players >= 20}
+                  >+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* CONFIRM */}
         {selectedCourt && selectedStart && (
           <div className={styles.confirmPanel}>
             <div className={styles.confirmDetails}>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>Court {selectedCourt}</div><div className={styles.confirmKey}>Court</div></div>
-              <div className={styles.confirmItem}><div className={styles.confirmVal}>{date}</div><div className={styles.confirmKey}>Date</div></div>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(selectedStart)}</div><div className={styles.confirmKey}>Start</div></div>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(endTime!)}</div><div className={styles.confirmKey}>End</div></div>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{duration}h</div><div className={styles.confirmKey}>Duration</div></div>
+              <div className={styles.confirmItem}><div className={styles.confirmVal}>{players}</div><div className={styles.confirmKey}>Players</div></div>
             </div>
             <div className={styles.confirmRight}>
+              <div className={styles.priceBreakdown}>
+                <span>Court ₱{courtFee.toLocaleString()}</span>
+                <span>+ Entrance ₱{entranceFee.toLocaleString()}</span>
+              </div>
               <div className={styles.confirmPrice}>₱{price.toLocaleString()} <span>total</span></div>
               {lockError && <div className={styles.lockError}>{lockError}</div>}
-              <button className="btn-primary" onClick={handleLockAndPay} disabled={locking} style={{ fontSize: 14, padding: '14px 28px' }}>
-                {locking ? 'Locking slot…' : 'Confirm & Pay — 5 min hold'}
+              <button className="btn-primary" onClick={handleLockAndPay} disabled={locking || !formValid} style={{ fontSize: 14, padding: '14px 28px' }}>
+                {locking ? 'Locking slot…' : !formValid ? 'Fill in your details' : 'Confirm & Pay — 5 min hold'}
               </button>
             </div>
           </div>
@@ -347,7 +425,7 @@ export default function BookingPage() {
 
       {showModal && lockData && selectedStart && endTime && (
         <BookingModal
-          details={{ bookingId: lockData.bookingId, reference: lockData.reference, lockedUntil: lockData.lockedUntil, courtNumber: selectedCourt!, bookingDate: date, startTime: selectedStart, endTime: endTime, duration, players: 4, price }}
+          details={{ bookingId: lockData.bookingId, reference: lockData.reference, lockedUntil: lockData.lockedUntil, courtNumber: selectedCourt!, bookingDate: date, startTime: selectedStart, endTime: endTime, duration, players, price, courtFee, entranceFee }}
           onSuccess={handleSuccess}
           onExpire={handleExpire}
           onClose={() => setShowModal(false)}
