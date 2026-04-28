@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Barlow, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
 
@@ -19,6 +19,11 @@ const barlowCondensed = Barlow_Condensed({
 export const metadata: Metadata = {
   title: 'SideOut — Court Booking · Cebu City',
   description: "Philippines' premier pickleball facility. 10 professional courts, real-time availability, instant booking.",
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
