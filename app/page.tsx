@@ -125,6 +125,23 @@ export default function Home() {
     <>
       <Nav />
 
+      {/* MOBILE HOME — only shown on small screens */}
+      <div className={styles.mobileHome}>
+        <Link href="/booking" className={`${styles.mobileTile} ${styles.mobileTilePrimary}`}>
+          <div className={styles.mobileTileLabel}>Book Now</div>
+          <div className={styles.mobileTileTitle}>Reserve a Court</div>
+          <div className={styles.mobileTileMeta}>₱700/hr · Real-time availability</div>
+        </Link>
+        <Link href="/facilities" className={styles.mobileTile}>
+          <div className={styles.mobileTileLabel}>Explore</div>
+          <div className={styles.mobileTileTitle}>Facilities</div>
+          <div className={styles.mobileTileMeta}>10 courts · Café · 24/7 access</div>
+        </Link>
+      </div>
+
+      {/* DESKTOP HOME */}
+      <div className={styles.desktopHome}>
+
       {/* HERO */}
       <section className={styles.hero}>
         <div className={styles.heroInner}>
@@ -140,7 +157,7 @@ export default function Home() {
               <Link href="/booking" className="btn-primary" style={{ fontSize: 20, padding: '18px 56px', letterSpacing: 3 }}>
                 Reserve a Court
               </Link>
-              <Link href="#facilities" className="btn-outline">
+              <Link href="/facilities" className="btn-outline">
                 View Facilities
               </Link>
             </div>
@@ -200,28 +217,6 @@ export default function Home() {
           </div>
           <div className={styles.facilitiesCta}>
             <Link href="/booking" className="btn-primary">Reserve a Court Now</Link>
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section className={styles.section} id="how-it-works">
-        <div className={styles.sectionInner}>
-          <div className={styles.sectionLabel}>— Simple Process</div>
-          <div className={styles.sectionTitle}>How It Works</div>
-          <div className={styles.stepsGrid}>
-            {[
-              { num: '01', title: 'Pick a Date', desc: 'Choose your preferred date from the calendar.' },
-              { num: '02', title: 'Select a Court', desc: 'Pick from 10 available courts based on real-time availability.' },
-              { num: '03', title: 'Choose Your Time', desc: 'Select your time slot — green is available, yellow is limited, red is fully booked.' },
-              { num: '04', title: 'Pay & Confirm', desc: 'Pay via GCash, Maya, or GoTyme bank transfer. Get instant confirmation.' },
-            ].map(step => (
-              <div key={step.num} className={styles.stepCard}>
-                <div className={styles.stepNum}>{step.num}</div>
-                <div className={styles.stepTitle}>{step.title}</div>
-                <div className={styles.stepDesc}>{step.desc}</div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -287,6 +282,8 @@ export default function Home() {
           <div className={styles.footerText}>GCash · Maya · GoTyme</div>
         </div>
       </footer>
+
+      </div>
     </>
   )
 }

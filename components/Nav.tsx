@@ -15,9 +15,8 @@ export default function Nav() {
       </Link>
 
       <ul className={styles.links}>
-        <li><Link href="/#facilities">Facilities</Link></li>
+        <li><Link href="/facilities">Facilities</Link></li>
         <li><Link href="/#pricing">Pricing</Link></li>
-        <li><Link href="/#how-it-works">How It Works</Link></li>
         <li>
           <Link
             href="/booking"

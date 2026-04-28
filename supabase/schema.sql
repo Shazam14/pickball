@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   customer_name   TEXT NOT NULL,
   customer_phone  TEXT NOT NULL,
   customer_email  TEXT,
-  payment_method  TEXT CHECK (payment_method IN ('gcash', 'maya', 'gotyme')),
+  payment_method  TEXT CHECK (payment_method IN ('gcash', 'maya', 'gotyme', 'onsite')),
   payment_reference TEXT,
   status          TEXT NOT NULL DEFAULT 'locked'
                   CHECK (status IN ('locked', 'confirmed', 'cancelled', 'expired')),

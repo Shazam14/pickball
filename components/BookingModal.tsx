@@ -48,6 +48,12 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; color: string; instru
     color: '#f59e0b',
     instructions: 'Transfer via GoTyme Bank to Account No. XXXX-XXXX-XX (SideOut Cebu). Enter your reference number below.',
   },
+  {
+    id: 'onsite',
+    label: 'Pay Onsite',
+    color: '#22c55e',
+    instructions: 'Reserve now and pay at the venue when you arrive. Bring exact change or any accepted method.',
+  },
 ]
 
 function formatTime(t: string) {
@@ -67,9 +73,13 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
     onExpire()
   }, [onExpire])
 
-  async function handleConfirm() {
-    if (!method || !reference.trim()) {
-      setError('Please select a payment method and enter your reference number.')
+  async function handleConfirm(opts?: { onsite?: boolean }) {
+    if (!method) {
+      setError('Please select a payment method.')
+      return
+    }
+    if (!opts?.onsite && !reference.trim()) {
+      setError('Please enter your reference number.')
       return
     }
     setLoading(true)
@@ -81,7 +91,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
         body: JSON.stringify({
           booking_id: details.bookingId,
           payment_method: method,
-          payment_reference: reference.trim(),
+          payment_reference: opts?.onsite ? 'ONSITE' : reference.trim(),
         }),
       })
       const data = await res.json()
@@ -152,7 +162,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
               ))}
             </div>
 
-            {selectedMethod && (
+            {selectedMethod && method !== 'onsite' && (
               <div className={styles.payInstructions}>
                 {/* QR placeholder — replace with real QR image per method */}
                 <div className={styles.qrPlaceholder}>
@@ -175,14 +185,36 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
               </div>
             )}
 
-            <button
-              className="btn-primary"
-              style={{ width: '100%', clipPath: 'none', marginTop: 16 }}
-              disabled={!method}
-              onClick={() => setStep('reference')}
-            >
-              I've Paid — Enter Reference →
-            </button>
+            {selectedMethod && method === 'onsite' && (
+              <div className={styles.payInstructions}>
+                <p className={styles.instructions}>{selectedMethod.instructions}</p>
+                <div className={styles.amount}>
+                  Pay at venue: <strong>₱{details.price.toLocaleString()}</strong>
+                </div>
+              </div>
+            )}
+
+            {error && method === 'onsite' && <div className={styles.error}>{error}</div>}
+
+            {method === 'onsite' ? (
+              <button
+                className="btn-primary"
+                style={{ width: '100%', clipPath: 'none', marginTop: 16 }}
+                disabled={loading}
+                onClick={() => handleConfirm({ onsite: true })}
+              >
+                {loading ? 'Confirming...' : 'Confirm Reservation →'}
+              </button>
+            ) : (
+              <button
+                className="btn-primary"
+                style={{ width: '100%', clipPath: 'none', marginTop: 16 }}
+                disabled={!method}
+                onClick={() => setStep('reference')}
+              >
+                I&apos;ve Paid — Enter Reference →
+              </button>
+            )}
           </div>
         )}
 
@@ -206,7 +238,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
               className="btn-primary"
               style={{ width: '100%', clipPath: 'none', marginTop: 8 }}
               disabled={loading || !reference.trim()}
-              onClick={handleConfirm}
+              onClick={() => handleConfirm()}
             >
               {loading ? 'Confirming...' : 'Confirm Booking →'}
             </button>
