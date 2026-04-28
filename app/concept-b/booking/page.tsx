@@ -8,6 +8,58 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import DesktopFlow from './DesktopFlow'
 import MobileFlow from './MobileFlow'
+import TourButton, { type TourStep } from '@/components/TourButton'
+
+const TOUR_B_STEPS: TourStep[] = [
+  {
+    element: '[data-tour-b="topbar"]',
+    popover: {
+      title: 'Concept B · Design Preview',
+      description: 'This is a <b>visual prototype</b> — mock data, no real submit. Use it to compare the look & feel against Concept A.',
+      side: 'bottom', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour-b="mode"]',
+    popover: {
+      title: 'Reserve or Walk-in',
+      description: 'Same split as Concept A: <b>Reserve</b> for online booking with held slots, <b>Walking In</b> for show-up-and-pay.',
+      side: 'bottom', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="lobby"]',
+    popover: {
+      title: 'Venue layout',
+      description: 'Architectural sketch of the lobby — entrance, restrooms, lounge, corridor to the courts. <b>Tap to expand.</b>',
+      side: 'left', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="court-area"]',
+    popover: {
+      title: 'Pick a court',
+      description: 'Desktop: 2-column grid with status dots. Mobile: vertical list with thumbnails. Booked courts are dimmed.',
+      side: 'top', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="step-indicator"]',
+    popover: {
+      title: '3-step funnel',
+      description: 'Pick court → Pick slot → Pay & upload receipt. You can jump steps freely in this preview.',
+      side: 'bottom', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour-b="back-to-a"]',
+    popover: {
+      title: 'Back to Concept A',
+      description: 'When you&apos;re done previewing, this takes you back to the live booking flow.',
+      side: 'bottom', align: 'end',
+    },
+  },
+]
 
 const t = {
   bg: '#F4F2EC', ink: '#0F1411', mute: '#6B746F', line: '#D9D5C9',
@@ -29,24 +81,32 @@ function useIsMobile() {
 
 function TopBar() {
   return (
-    <div style={{
+    <div data-tour-b="topbar" style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '14px 20px', background: t.ink, color: '#fff',
-      borderBottom: `1px solid ${t.greenDeep}`,
+      borderBottom: `1px solid ${t.greenDeep}`, gap: 12, flexWrap: 'wrap',
     }}>
       <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.28em', color: t.green, fontWeight: 700 }}>
         ◆ CONCEPT B · DESIGN PREVIEW
       </div>
-      <Link href="/booking" style={{
-        display: 'inline-flex', alignItems: 'center', gap: 8,
-        background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)',
-        padding: '6px 12px', textDecoration: 'none', color: '#fff',
-        fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.18em', fontWeight: 700,
-        whiteSpace: 'nowrap', flexShrink: 0,
-      }}>
-        <span style={{ width: 14, height: 14, borderRadius: '50%', background: t.green, display: 'inline-block' }} />
-        ← BACK TO A
-      </Link>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+        <TourButton
+          storageKey="pickball:tour:b:seen"
+          steps={TOUR_B_STEPS}
+          label="↻ TAKE A TOUR"
+          className="cb-tour-btn"
+        />
+        <Link href="/booking" data-tour-b="back-to-a" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)',
+          padding: '6px 12px', textDecoration: 'none', color: '#fff',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.18em', fontWeight: 700,
+          whiteSpace: 'nowrap',
+        }}>
+          <span style={{ width: 14, height: 14, borderRadius: '50%', background: t.green, display: 'inline-block' }} />
+          ← BACK TO A
+        </Link>
+      </div>
     </div>
   )
 }
@@ -54,7 +114,7 @@ function TopBar() {
 function ModeChooser({ mode, setMode }: { mode: Mode; setMode: (m: Mode) => void }) {
   return (
     <div style={{ background: t.bg, padding: '24px 20px 0' }}>
-      <div style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div data-tour-b="mode" style={{ maxWidth: 1280, margin: '0 auto', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
         {([
           { k: 'reserve', title: 'RESERVE A COURT', sub: 'Online booking · pay first · slot held' },
           { k: 'walkin', title: 'WALKING IN', sub: 'No reservation · pay at the venue' },

@@ -3,6 +3,16 @@ import { test } from '@playwright/test';
 // Visual mobile QA — full-page screenshots of every public page.
 // Run with: npx playwright test booking-mobile --project="Pixel 7"
 
+// Suppress the first-visit auto-tour so it doesn't cover click targets.
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('pickball:tour:a:seen', '1');
+      localStorage.setItem('pickball:tour:b:seen', '1');
+    } catch {}
+  });
+});
+
 test.describe('mobile @ 375 (iPhone SE width)', () => {
   test.use({ viewport: { width: 375, height: 667 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 

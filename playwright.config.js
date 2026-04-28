@@ -7,6 +7,11 @@ export default defineConfig({
     baseURL: 'https://pickball.vercel.app',
     screenshot: 'on',
     video: 'on',
+    // Pre-launch basic-auth gate (SITE_PASSWORD in .env.local).
+    // Tests run against localhost:3000 which sees the same env.
+    httpCredentials: process.env.SITE_PASSWORD
+      ? { username: process.env.SITE_USER || 'sideout', password: process.env.SITE_PASSWORD }
+      : undefined,
   },
   projects: [
     {

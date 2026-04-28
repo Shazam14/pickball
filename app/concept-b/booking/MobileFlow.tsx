@@ -5,6 +5,7 @@
 // Mock data only. Strict design parity with the handoff.
 
 import { useState } from 'react'
+import { LobbyPlanThumbnail } from '@/components/LobbyPlan'
 
 const m = {
   bg: '#F4F2EC', card: '#FFFFFF', ink: '#0F1411', ink2: '#1F2924', mute: '#6B746F',
@@ -85,7 +86,7 @@ function Step1({ pick, setPick, onNext }: { pick: number; setPick: (n: number) =
           <button style={{ background: m.ink, color: '#fff', border: 'none', padding: '8px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.22em', fontWeight: 700 }}>CHANGE</button>
         </div>
 
-        <div style={{ background: m.green, color: '#04140A', padding: '14px 14px', marginBottom: 18, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: m.green, color: '#04140A', padding: '14px 14px', marginBottom: 14, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, letterSpacing: '0.22em', fontWeight: 700 }}>◆ FASTEST OPEN</div>
             <div style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 900, fontSize: 22, lineHeight: 1, marginTop: 2 }}>COURT 01 · 7PM</div>
@@ -93,9 +94,13 @@ function Step1({ pick, setPick, onNext }: { pick: number; setPick: (n: number) =
           <span style={{ fontFamily: 'Barlow Condensed, sans-serif', fontWeight: 900, fontSize: 24 }}>→</span>
         </div>
 
+        <div data-tour="lobby" style={{ marginBottom: 14 }}>
+          <LobbyPlanThumbnail />
+        </div>
+
         <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.22em', color: m.mute, margin: '4px 0 10px' }}>ALL COURTS · TAP TO PICK</div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div data-tour="court-area" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {COURTS.map(ct => {
             const meta = META[ct.status]
             const isSel = pick === ct.n

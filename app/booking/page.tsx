@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
 import BookingModal from '@/components/BookingModal'
+import TourButton, { type TourStep } from '@/components/TourButton'
+import { LobbyPlanButton } from '@/components/LobbyPlan'
 import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
@@ -69,6 +71,57 @@ function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
 const HOUR_MIN = 6
 const HOUR_MAX = 22  // exclusive — last possible end-time is 22:00 (10 PM)
 const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN  // 16
+
+const TOUR_A_STEPS: TourStep[] = [
+  {
+    element: '[data-tour="mode"]',
+    popover: {
+      title: 'Reserve or Walk-In',
+      description: 'Pick <b>Reserve</b> to book online and lock your slot, or <b>Walking In</b> to skip the funnel and pay at the venue.',
+      side: 'bottom', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="date"]',
+    popover: {
+      title: 'Pick a date',
+      description: 'Scroll the strip to any day this month. Use <b>‹ ›</b> to jump months. Booking is open up to 60 days ahead.',
+      side: 'bottom', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="courts"]',
+    popover: {
+      title: 'Pick one or more courts',
+      description: 'Tap a court to add it. Tap multiple to book a tournament block — they all share one reference.',
+      side: 'top', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="hours"]',
+    popover: {
+      title: 'Pick your hour(s)',
+      description: 'Tap one box for a 1-hour pick. Tap a second box to extend the range. Striped boxes are already booked.',
+      side: 'top', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="players"]',
+    popover: {
+      title: 'How many players?',
+      description: `₱${ENTRANCE_FEE_PER_PERSON} entrance per head — separate from the ₱${COURT_PRICE_PER_HOUR}/hr court fee.`,
+      side: 'left', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="confirm"]',
+    popover: {
+      title: 'Review & reserve',
+      description: 'Once everything is filled in, the <b>Reserve & Pay</b> button opens the payment modal. Slot is held for 1 hour after locking.',
+      side: 'top', align: 'center',
+    },
+  },
+]
 
 interface LockResponse { reference: string; lockedUntil: string; courtNumbers: number[] }
 interface SuccessData {
@@ -339,17 +392,20 @@ export default function BookingPage() {
         <div className={styles.header}>
           <div className={styles.headerTop}>
             <Link href="/" className={styles.back}>← Back</Link>
-            <Link href="/concept-b/booking" className={styles.conceptToggle} aria-label="Preview Concept B design">
-              <span className={styles.conceptDot} />
-              <span className={styles.conceptLabel}>TRY CONCEPT B →</span>
-            </Link>
+            <div className={styles.headerRight}>
+              <TourButton storageKey="pickball:tour:a:seen" steps={TOUR_A_STEPS} className={styles.tourBtn} />
+              <Link href="/concept-b/booking" className={styles.conceptToggle} aria-label="Preview Concept B design">
+                <span className={styles.conceptDot} />
+                <span className={styles.conceptLabel}>TRY CONCEPT B →</span>
+              </Link>
+            </div>
           </div>
           <div className={styles.pageLabel}>— Play Pickleball</div>
           <div className={styles.pageTitle}>Book a Court</div>
         </div>
 
         {/* MODE CHOOSER */}
-        <div className={styles.modeChooser}>
+        <div className={styles.modeChooser} data-tour="mode">
           <button
             type="button"
             className={`${styles.modeBtn} ${mode === 'reserve' ? styles.modeBtnSelected : ''}`}
@@ -389,7 +445,7 @@ export default function BookingPage() {
         {mode === 'reserve' && (<>
 
         {/* DATE */}
-        <div className={styles.datePicker}>
+        <div className={styles.datePicker} data-tour="date">
           <div className={styles.dateHeader}>
             <label className="field-label">Select Date</label>
             {loading && <span className={styles.loadingText}>Checking availability…</span>}
@@ -455,9 +511,12 @@ export default function BookingPage() {
 
         {/* STEP 1 */}
         <div className={styles.courtSection}>
-          <div className={styles.sectionLabel}>01 — Select Court(s)</div>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionLabel}>01 — Select Court(s)</div>
+            <LobbyPlanButton className={styles.lobbyBtn} />
+          </div>
           <div className={styles.courtHint}>Tap multiple courts to book them together (tournaments).</div>
-          <div className={styles.courtGrid}>
+          <div className={styles.courtGrid} data-tour="courts">
             {Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1).map(c => {
               const available = availableCourtsForTime.includes(c)
               const selected = selectedCourts.includes(c)
@@ -485,7 +544,7 @@ export default function BookingPage() {
             }
           </div>
 
-          <div className={styles.hourGrid}>
+          <div className={styles.hourGrid} data-tour="hours">
             {Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i).map(h => {
               const t = toTime(h)
               const taken = bookedHours.includes(h)
@@ -544,7 +603,7 @@ export default function BookingPage() {
                   placeholder="juan@email.com"
                 />
               </div>
-              <div className={styles.field}>
+              <div className={styles.field} data-tour="players">
                 <label className="field-label">Players (₱{ENTRANCE_FEE_PER_PERSON} entrance / head)</label>
                 <div className={styles.stepper}>
                   <button
@@ -568,7 +627,7 @@ export default function BookingPage() {
 
         {/* CONFIRM */}
         {selectedCourts.length > 0 && selectedStart && (
-          <div className={styles.confirmPanel}>
+          <div className={styles.confirmPanel} data-tour="confirm">
             <div className={styles.confirmDetails}>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{selectedCourts.length === 1 ? `Court ${selectedCourts[0]}` : `Courts ${selectedCourts.join(', ')}`}</div><div className={styles.confirmKey}>{selectedCourts.length === 1 ? 'Court' : `${selectedCourts.length} Courts`}</div></div>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(selectedStart)}</div><div className={styles.confirmKey}>Start</div></div>

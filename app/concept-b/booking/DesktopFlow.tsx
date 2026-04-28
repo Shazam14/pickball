@@ -5,6 +5,7 @@
 // JetBrains Mono, court green. Inline styles preserved per handoff aesthetic.
 
 import { useState, Fragment, type ReactNode } from 'react'
+import { LobbyPlanThumbnail } from '@/components/LobbyPlan'
 
 const t = {
   bg: '#F4F2EC', ink: '#0F1411', ink2: '#1F2924', mute: '#6B746F',
@@ -222,7 +223,7 @@ export default function DesktopFlow() {
 
         <StepDots step={step - 1} />
 
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 0, marginBottom: 28, flexWrap: 'wrap' }}>
+        <div data-tour="step-indicator" style={{ display: 'flex', justifyContent: 'center', gap: 0, marginBottom: 28, flexWrap: 'wrap' }}>
           {[
             { n: 1, l: 'Pick a court' },
             { n: 2, l: 'Pick your slot' },
@@ -262,8 +263,12 @@ export default function DesktopFlow() {
                 </div>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.7fr) minmax(0, 1fr)', gap: 24 }}>
-                <CourtMiniGrid pick={pickedCourt} setPick={setPickedCourt} />
-                <div style={{ background: '#FAF8F2', border: `1.5px solid ${t.line}`, padding: '20px 22px', alignSelf: 'flex-start' }}>
+                <div data-tour="court-area">
+                  <CourtMiniGrid pick={pickedCourt} setPick={setPickedCourt} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignSelf: 'flex-start' }}>
+                <div data-tour="lobby"><LobbyPlanThumbnail /></div>
+                <div style={{ background: '#FAF8F2', border: `1.5px solid ${t.line}`, padding: '20px 22px' }}>
                   <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.28em', color: t.greenDeep }}>
                     ◆ SELECTED
                   </div>
@@ -285,6 +290,7 @@ export default function DesktopFlow() {
                   }}>
                     Next — pick your slot →
                   </button>
+                </div>
                 </div>
               </div>
             </div>

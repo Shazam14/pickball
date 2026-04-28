@@ -3,6 +3,15 @@ import { test } from '@playwright/test';
 // Concept B visual smoke — confirms desktop + mobile + walk-in render.
 // Run: npx playwright test concept-b --project="Pixel 7"
 
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('pickball:tour:a:seen', '1');
+      localStorage.setItem('pickball:tour:b:seen', '1');
+    } catch {}
+  });
+});
+
 test('concept-b desktop @ 1280', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto('http://localhost:3000/concept-b/booking');
