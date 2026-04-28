@@ -18,7 +18,7 @@ export function proxy(req: NextRequest) {
 
   return new NextResponse('Authentication required', {
     status: 401,
-    headers: { 'WWW-Authenticate': 'Basic realm="SideOut Pickleball — Pre-Launch"' },
+    headers: { 'WWW-Authenticate': 'Basic realm="SideOut Pickleball - Pre-Launch"' },
   })
 }
 
