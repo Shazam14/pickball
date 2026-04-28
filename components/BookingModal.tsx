@@ -17,6 +17,9 @@ interface BookingDetails {
   price: number
   courtFee: number
   entranceFee: number
+  customerName: string
+  customerPhone: string
+  customerEmail?: string
 }
 
 interface Props {
@@ -47,12 +50,6 @@ const PAYMENT_METHODS: { id: PaymentMethod; label: string; color: string; instru
     color: '#f59e0b',
     instructions: 'Transfer via GoTyme Bank to Account No. XXXX-XXXX-XX (SideOut Cebu). Enter your reference number below.',
   },
-  {
-    id: 'onsite',
-    label: 'Pay Onsite',
-    color: '#22c55e',
-    instructions: 'Reserve now and pay at the venue when you arrive. Bring exact change or any accepted method.',
-  },
 ]
 
 function formatTime(t: string) {
@@ -72,12 +69,12 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
     onExpire()
   }, [onExpire])
 
-  async function handleConfirm(opts?: { onsite?: boolean }) {
+  async function handleConfirm() {
     if (!method) {
       setError('Please select a payment method.')
       return
     }
-    if (!opts?.onsite && !reference.trim()) {
+    if (!reference.trim()) {
       setError('Please enter your reference number.')
       return
     }
@@ -90,7 +87,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
         body: JSON.stringify({
           reference: details.reference,
           payment_method: method,
-          payment_reference: opts?.onsite ? 'ONSITE' : reference.trim(),
+          payment_reference: reference.trim(),
         }),
       })
       const data = await res.json()
@@ -116,6 +113,15 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
 
         {/* Countdown always visible */}
         <CountdownTimer lockedUntil={details.lockedUntil} onExpire={handleExpire} />
+
+        {/* Booker info — final review before payment */}
+        <div className={styles.bookerBlock}>
+          <div className={styles.bookerLabel}>Booker</div>
+          <div className={styles.bookerName}>{details.customerName}</div>
+          <div className={styles.bookerContact}>{details.customerPhone}</div>
+          {details.customerEmail && <div className={styles.bookerContact}>{details.customerEmail}</div>}
+          <div className={styles.bookerPlayers}>{details.players} {details.players === 1 ? 'player' : 'players'} total</div>
+        </div>
 
         {/* Booking summary */}
         <div className={styles.summary}>
@@ -161,7 +167,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
               ))}
             </div>
 
-            {selectedMethod && method !== 'onsite' && (
+            {selectedMethod && (
               <div className={styles.payInstructions}>
                 {/* QR placeholder — replace with real QR image per method */}
                 <div className={styles.qrPlaceholder}>
@@ -184,36 +190,14 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
               </div>
             )}
 
-            {selectedMethod && method === 'onsite' && (
-              <div className={styles.payInstructions}>
-                <p className={styles.instructions}>{selectedMethod.instructions}</p>
-                <div className={styles.amount}>
-                  Pay at venue: <strong>₱{details.price.toLocaleString()}</strong>
-                </div>
-              </div>
-            )}
-
-            {error && method === 'onsite' && <div className={styles.error}>{error}</div>}
-
-            {method === 'onsite' ? (
-              <button
-                className="btn-primary"
-                style={{ width: '100%', clipPath: 'none', marginTop: 16 }}
-                disabled={loading}
-                onClick={() => handleConfirm({ onsite: true })}
-              >
-                {loading ? 'Confirming...' : 'Confirm Reservation →'}
-              </button>
-            ) : (
-              <button
-                className="btn-primary"
-                style={{ width: '100%', clipPath: 'none', marginTop: 16 }}
-                disabled={!method}
-                onClick={() => setStep('reference')}
-              >
-                I&apos;ve Paid — Enter Reference →
-              </button>
-            )}
+            <button
+              className="btn-primary"
+              style={{ width: '100%', clipPath: 'none', marginTop: 16 }}
+              disabled={!method}
+              onClick={() => setStep('reference')}
+            >
+              I&apos;ve Paid — Enter Reference →
+            </button>
           </div>
         )}
 

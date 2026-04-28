@@ -8,6 +8,7 @@ import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/l
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
+type Mode = 'reserve' | 'walkin'
 type SlotMatrix = Record<string, { court: number; available: boolean }[]>
 type TimeStatus = 'available' | 'limited' | 'booked'
 
@@ -19,36 +20,36 @@ function formatTime(t: string) {
   return `${hr - 12}:00 PM`
 }
 
-function formatTimeShort(t: string) {
-  const hr = parseInt(t.split(':')[0])
-  if (hr < 12) return `${hr}AM`
-  if (hr === 12) return '12PM'
-  return `${hr - 12}PM`
+function formatHour(h: number) {
+  if (h === 0 || h === 24) return '12AM'
+  if (h < 12) return `${h}AM`
+  if (h === 12) return '12PM'
+  return `${h - 12}PM`
 }
 
-function today() {
-  const d = new Date()
+function isoOf(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
-const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
-const WEEK_STRIP_DAYS = 14
+function today() {
+  return isoOf(new Date())
+}
 
-function dateRangeFromToday(days: number) {
-  const out: { iso: string; dow: string; day: number; mon: string; isToday: boolean }[] = []
-  const now = new Date()
-  for (let i = 0; i < days; i++) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)
-    out.push({
-      iso: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
-      dow: DOW[d.getDay()],
-      day: d.getDate(),
-      mon: MON[d.getMonth()],
-      isToday: i === 0,
-    })
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December']
+const MAX_DAYS_AHEAD = 60
+
+function buildMonthGrid(year: number, month: number) {
+  const first = new Date(year, month, 1)
+  const startWeekday = first.getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: ({ iso: string; day: number } | null)[] = []
+  for (let i = 0; i < startWeekday; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ iso: isoOf(new Date(year, month, d)), day: d })
   }
-  return out
+  while (cells.length % 7) cells.push(null)
+  return cells
 }
 
 function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
@@ -66,16 +67,20 @@ const HOUR_MIN = 6
 const HOUR_MAX = 22  // exclusive — last possible end-time is 22:00 (10 PM)
 const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN  // 16
 
-function pctFor(h: number) { return ((h - HOUR_MIN) / SLOTS_TOTAL) * 100 }
-
 interface LockResponse { reference: string; lockedUntil: string; courtNumbers: number[] }
 interface SuccessData {
   reference: string; courtNumbers: number[]; bookingDate: string
   startTime: string; endTime: string; duration: number; price: number
+  players: number; customerName: string; customerPhone: string; customerEmail?: string
 }
 
 export default function BookingPage() {
+  const [mode, setMode] = useState<Mode>('reserve')
   const [date, setDate] = useState(today())
+  const [viewMonth, setViewMonth] = useState(() => {
+    const d = new Date()
+    return { y: d.getFullYear(), m: d.getMonth() }
+  })
   const [slots, setSlots] = useState<SlotMatrix>({})
   const [loading, setLoading] = useState(false)
 
@@ -163,10 +168,7 @@ export default function BookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCourts, slots])
 
-  // ---- TIME RANGE SLIDER ----
-  const trackRef = useRef<HTMLDivElement>(null)
-  const draggingRef = useRef<'start' | 'end' | null>(null)
-
+  // ---- TIME (HOUR BOXES) ----
   const startH = selectedStart ? hourOf(selectedStart) : null
   const endH = selectedEnd ? hourOf(selectedEnd) : (startH != null ? startH + 1 : null)
 
@@ -182,62 +184,40 @@ export default function BookingPage() {
     return out
   })()
 
-  const stateRef = useRef({ startH, endH, isRangeClear, bookedHours })
-  stateRef.current = { startH, endH, isRangeClear, bookedHours }
-
-  const hourFromClientX = (clientX: number) => {
-    const el = trackRef.current
-    if (!el) return HOUR_MIN
-    const rect = el.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return HOUR_MIN + Math.round(ratio * SLOTS_TOTAL)
-  }
-
-  useEffect(() => {
-    function onMove(e: PointerEvent) {
-      if (!draggingRef.current) return
-      e.preventDefault()
-      const { startH, endH, isRangeClear } = stateRef.current
-      const h = hourFromClientX(e.clientX)
-      if (draggingRef.current === 'start') {
-        const limit = (endH ?? HOUR_MAX) - 1
-        const newStart = Math.max(HOUR_MIN, Math.min(h, limit))
-        if (endH != null && !isRangeClear(newStart, endH)) return
-        setSelectedStart(toTime(newStart))
-        if (endH == null) setSelectedEnd(toTime(newStart + 1))
-      } else {
-        const lower = (startH ?? HOUR_MIN) + 1
-        const newEnd = Math.max(lower, Math.min(h, HOUR_MAX))
-        if (startH != null && !isRangeClear(startH, newEnd)) return
-        setSelectedEnd(toTime(newEnd))
-      }
-    }
-    function onUp() { draggingRef.current = null }
-    window.addEventListener('pointermove', onMove)
-    window.addEventListener('pointerup', onUp)
-    window.addEventListener('pointercancel', onUp)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerup', onUp)
-      window.removeEventListener('pointercancel', onUp)
-    }
-  }, [])
-
-  function startDrag(thumb: 'start' | 'end') {
-    return (e: React.PointerEvent) => {
-      e.preventDefault()
-      draggingRef.current = thumb
-      setLockError('')
-    }
-  }
-
-  function handleTrackClick(e: React.MouseEvent<HTMLDivElement>) {
-    if (draggingRef.current) return
-    const h = hourFromClientX(e.clientX)
+  function handleHourClick(h: number) {
     if (bookedHours.includes(h)) return
     setLockError('')
-    setSelectedStart(toTime(h))
-    setSelectedEnd(toTime(h + 1))
+
+    // No selection yet → start a 1-hour pick.
+    if (startH == null || endH == null) {
+      setSelectedStart(toTime(h))
+      setSelectedEnd(toTime(h + 1))
+      return
+    }
+
+    // Tap the only selected hour → deselect.
+    if (startH === h && endH === h + 1) {
+      setSelectedStart(null)
+      setSelectedEnd(null)
+      return
+    }
+
+    // Tap inside an existing multi-hour range → collapse to that single hour.
+    if (h >= startH && h < endH) {
+      setSelectedStart(toTime(h))
+      setSelectedEnd(toTime(h + 1))
+      return
+    }
+
+    // Tap outside → extend range to cover both. Reject if the bridge crosses a booked hour.
+    const newStart = Math.min(startH, h)
+    const newEnd = Math.max(endH, h + 1)
+    if (!isRangeClear(newStart, newEnd)) {
+      setLockError('That range crosses a booked slot. Pick a contiguous open range.')
+      return
+    }
+    setSelectedStart(toTime(newStart))
+    setSelectedEnd(toTime(newEnd))
   }
 
   const handleCourtSelect = (court: number) => {
@@ -297,7 +277,19 @@ export default function BookingPage() {
 
   function handleSuccess(reference: string) {
     setShowModal(false)
-    setSuccess({ reference, courtNumbers: [...selectedCourts], bookingDate: date, startTime: selectedStart!, endTime: endTime!, duration, price })
+    setSuccess({
+      reference,
+      courtNumbers: [...selectedCourts],
+      bookingDate: date,
+      startTime: selectedStart!,
+      endTime: endTime!,
+      duration,
+      price,
+      players,
+      customerName,
+      customerPhone,
+      customerEmail: customerEmail.trim() || undefined,
+    })
     setSelectedCourts([]); setSelectedStart(null); setSelectedEnd(null)
     setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4)
     fetchAvailability(date)
@@ -312,6 +304,13 @@ export default function BookingPage() {
             <div className={styles.successIcon}>✓</div>
             <div className={styles.successTitle}>Booking Confirmed!</div>
             <div className={styles.successSub}>See you on the court. Check your phone for confirmation.</div>
+            <div className={styles.bookerSuccessBlock}>
+              <div className={styles.bookerSuccessLabel}>Booker</div>
+              <div className={styles.bookerSuccessName}>{success.customerName}</div>
+              <div className={styles.bookerSuccessContact}>{success.customerPhone}</div>
+              {success.customerEmail && <div className={styles.bookerSuccessContact}>{success.customerEmail}</div>}
+              <div className={styles.bookerSuccessPlayers}>{success.players} {success.players === 1 ? 'player' : 'players'} total</div>
+            </div>
             <div className={styles.successSummary}>
               <div className={styles.sRow}><span>Ref #</span><span className={styles.green}>{success.reference}</span></div>
               <div className={styles.sRow}><span>{success.courtNumbers.length > 1 ? 'Courts' : 'Court'}</span><span>{success.courtNumbers.map(n => `Court ${n}`).join(', ')}</span></div>
@@ -336,9 +335,49 @@ export default function BookingPage() {
       <div className={styles.page}>
         <div className={styles.header}>
           <Link href="/" className={styles.back}>← Back</Link>
-          <div className={styles.pageLabel}>— Reserve Your Slot</div>
+          <div className={styles.pageLabel}>— Play Pickleball</div>
           <div className={styles.pageTitle}>Book a Court</div>
         </div>
+
+        {/* MODE CHOOSER */}
+        <div className={styles.modeChooser}>
+          <button
+            type="button"
+            className={`${styles.modeBtn} ${mode === 'reserve' ? styles.modeBtnSelected : ''}`}
+            onClick={() => setMode('reserve')}
+          >
+            <div className={styles.modeBtnTitle}>Reserve a Court</div>
+            <div className={styles.modeBtnSub}>Pick your court &amp; time. Pay online to lock your slot.</div>
+          </button>
+          <button
+            type="button"
+            className={`${styles.modeBtn} ${mode === 'walkin' ? styles.modeBtnSelected : ''}`}
+            onClick={() => setMode('walkin')}
+          >
+            <div className={styles.modeBtnTitle}>Walking In</div>
+            <div className={styles.modeBtnSub}>No reservation needed. Just visit and pay at the venue.</div>
+          </button>
+        </div>
+
+        {/* WALK-IN CARD */}
+        {mode === 'walkin' && (
+          <div className={styles.walkinCard}>
+            <div className={styles.walkinTitle}>Just Walk In</div>
+            <div className={styles.walkinSub}>No online payment. Show up, play, settle at the venue.</div>
+            <div className={styles.walkinInfo}>
+              <div className={styles.walkinRow}><span>Hours</span><span>Open 24 / 7</span></div>
+              <div className={styles.walkinRow}><span>Location</span><span>Mandaue, Cebu</span></div>
+              <div className={styles.walkinRow}><span>Court Fee</span><span>₱{COURT_PRICE_PER_HOUR.toLocaleString()} / hr</span></div>
+              <div className={styles.walkinRow}><span>Entrance</span><span>₱{ENTRANCE_FEE_PER_PERSON} per player</span></div>
+              <div className={styles.walkinRow}><span>Payment</span><span>Pay at the venue</span></div>
+            </div>
+            <div className={styles.walkinNote}>
+              Walk-ins are subject to court availability. To guarantee your slot — especially during peak hours — switch to <strong>Reserve a Court</strong> above.
+            </div>
+          </div>
+        )}
+
+        {mode === 'reserve' && (<>
 
         {/* DATE */}
         <div className={styles.datePicker}>
@@ -346,23 +385,59 @@ export default function BookingPage() {
             <label className="field-label">Select Date</label>
             {loading && <span className={styles.loadingText}>Checking availability…</span>}
           </div>
-          <div className={styles.weekStrip}>
-            {dateRangeFromToday(WEEK_STRIP_DAYS).map(d => {
-              const selected = d.iso === date
-              return (
-                <button
-                  key={d.iso}
-                  type="button"
-                  className={`${styles.dayCard} ${selected ? styles.dayCardSelected : ''}`}
-                  onClick={() => setDate(d.iso)}
-                >
-                  <span className={styles.dayDow}>{d.isToday ? 'Today' : d.dow}</span>
-                  <span className={styles.dayNum}>{d.day}</span>
-                  <span className={styles.dayMon}>{d.mon}</span>
-                </button>
-              )
-            })}
-          </div>
+          {(() => {
+            const todayD = new Date()
+            const todayISO = isoOf(todayD)
+            const maxD = new Date(todayD.getFullYear(), todayD.getMonth(), todayD.getDate() + MAX_DAYS_AHEAD)
+            const maxISO = isoOf(maxD)
+            const cells = buildMonthGrid(viewMonth.y, viewMonth.m)
+            const isCurrentViewMonth = viewMonth.y === todayD.getFullYear() && viewMonth.m === todayD.getMonth()
+            const lastDayOfView = new Date(viewMonth.y, viewMonth.m + 1, 0)
+            const canGoNext = isoOf(new Date(lastDayOfView.getFullYear(), lastDayOfView.getMonth() + 1, 1)) <= maxISO
+            return (
+              <>
+                <div className={styles.monthHeader}>
+                  <button
+                    type="button"
+                    className={styles.monthNav}
+                    onClick={() => setViewMonth(v => v.m === 0 ? { y: v.y - 1, m: 11 } : { y: v.y, m: v.m - 1 })}
+                    disabled={isCurrentViewMonth}
+                    aria-label="Previous month"
+                  >‹</button>
+                  <div className={styles.monthLabel}>{MONTHS_FULL[viewMonth.m]} {viewMonth.y}</div>
+                  <button
+                    type="button"
+                    className={styles.monthNav}
+                    onClick={() => setViewMonth(v => v.m === 11 ? { y: v.y + 1, m: 0 } : { y: v.y, m: v.m + 1 })}
+                    disabled={!canGoNext}
+                    aria-label="Next month"
+                  >›</button>
+                </div>
+                <div className={styles.dowHeader}>
+                  {DOW.map(d => <div key={d} className={styles.dowCell}>{d}</div>)}
+                </div>
+                <div className={styles.monthGrid}>
+                  {cells.map((cell, i) => {
+                    if (!cell) return <div key={`empty-${i}`} className={styles.monthCellEmpty} />
+                    const disabled = cell.iso < todayISO || cell.iso > maxISO
+                    const selected = cell.iso === date
+                    const isToday = cell.iso === todayISO
+                    return (
+                      <button
+                        key={cell.iso}
+                        type="button"
+                        className={`${styles.monthCell} ${selected ? styles.monthCellSelected : ''} ${disabled ? styles.monthCellDisabled : ''} ${isToday ? styles.monthCellToday : ''}`}
+                        disabled={disabled}
+                        onClick={() => setDate(cell.iso)}
+                      >
+                        {cell.day}
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )
+          })()}
         </div>
 
         {/* LEGEND */}
@@ -397,63 +472,32 @@ export default function BookingPage() {
           <div className={styles.sectionLabel}>02 — Select Time</div>
           <div className={styles.timeHint}>
             {!selectedStart
-              ? 'Tap a start time'
-              : !selectedEnd
-                ? <><span className={styles.hintGreen}>{formatTime(selectedStart)}</span> selected — tap an end time to extend, or tap again to deselect</>
-                : <><span className={styles.hintGreen}>{formatTime(selectedStart)} — {formatTime(selectedEnd)}</span> · {duration}h · ₱{price.toLocaleString()} · tap any slot to change</>
+              ? 'Tap an hour. Tap a second hour to extend the range.'
+              : !selectedEnd || endH === (startH ?? 0) + 1
+                ? <><span className={styles.hintGreen}>{formatTime(selectedStart)} — {formatTime(endTime!)}</span> · 1h · tap another hour to extend, tap again to deselect</>
+                : <><span className={styles.hintGreen}>{formatTime(selectedStart)} — {formatTime(selectedEnd!)}</span> · {duration}h · ₱{price.toLocaleString()} · tap any hour to change</>
             }
           </div>
 
-          <div className={styles.slider}>
-            <div
-              ref={trackRef}
-              className={styles.sliderTrack}
-              onClick={handleTrackClick}
-            >
-              {bookedHours.map(h => (
-                <div
-                  key={h}
-                  className={styles.sliderBooked}
-                  style={{ left: `${pctFor(h)}%`, width: `${100 / SLOTS_TOTAL}%` }}
-                  title={`${formatTime(toTime(h))} — booked`}
-                />
-              ))}
-              {startH != null && endH != null && (
-                <div
-                  className={styles.sliderRange}
-                  style={{ left: `${pctFor(startH)}%`, width: `${pctFor(endH) - pctFor(startH)}%` }}
-                />
-              )}
-              {startH != null && (
+          <div className={styles.hourGrid}>
+            {Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i).map(h => {
+              const t = toTime(h)
+              const taken = bookedHours.includes(h)
+              const status = getTimeStatus(t, slots)
+              const inRange = startH != null && endH != null && h >= startH && h < endH
+              return (
                 <button
-                  type="button"
-                  className={styles.sliderThumb}
-                  style={{ left: `${pctFor(startH)}%` }}
-                  onPointerDown={startDrag('start')}
-                  aria-label={`Start time ${formatTimeShort(toTime(startH))}`}
-                />
-              )}
-              {endH != null && (
-                <button
-                  type="button"
-                  className={styles.sliderThumb}
-                  style={{ left: `${pctFor(endH)}%` }}
-                  onPointerDown={startDrag('end')}
-                  aria-label={`End time ${formatTimeShort(toTime(endH))}`}
-                />
-              )}
-            </div>
-            <div className={styles.sliderTicks}>
-              {[6, 12, 18, 22].map(h => (
-                <span
                   key={h}
-                  className={styles.sliderTick}
-                  style={{ left: `${pctFor(h)}%` }}
+                  type="button"
+                  className={`${styles.hourBox} ${inRange ? styles.hourBoxSelected : ''} ${taken ? styles.hourBoxBooked : status === 'limited' ? styles.hourBoxLimited : ''}`}
+                  disabled={taken}
+                  onClick={() => handleHourClick(h)}
+                  aria-pressed={inRange}
                 >
-                  {formatTimeShort(toTime(h))}
-                </span>
-              ))}
-            </div>
+                  <span className={styles.hourBoxLabel}>{formatHour(h)}–{formatHour(h + 1)}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -539,11 +583,28 @@ export default function BookingPage() {
             </div>
           </div>
         )}
+
+        </>)}
       </div>
 
       {showModal && lockData && selectedStart && endTime && (
         <BookingModal
-          details={{ reference: lockData.reference, lockedUntil: lockData.lockedUntil, courtNumbers: lockData.courtNumbers, bookingDate: date, startTime: selectedStart, endTime: endTime, duration, players, price, courtFee, entranceFee }}
+          details={{
+            reference: lockData.reference,
+            lockedUntil: lockData.lockedUntil,
+            courtNumbers: lockData.courtNumbers,
+            bookingDate: date,
+            startTime: selectedStart,
+            endTime: endTime,
+            duration,
+            players,
+            price,
+            courtFee,
+            entranceFee,
+            customerName,
+            customerPhone,
+            customerEmail: customerEmail.trim() || undefined,
+          }}
           onSuccess={handleSuccess}
           onExpire={handleExpire}
           onClose={() => setShowModal(false)}

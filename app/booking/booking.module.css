@@ -23,66 +23,198 @@
 .pageLabel { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--green); font-weight: 600; margin-bottom: 8px; }
 .pageTitle { font-family: var(--font-barlow-condensed), sans-serif; font-weight: 900; font-size: clamp(36px,5vw,56px); text-transform: uppercase; line-height: 1; }
 
-/* DATE PICKER */
-.datePicker { margin-bottom: 28px; }
-.dateHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
-.loadingText { font-size: 12px; color: var(--green); letter-spacing: 1px; text-transform: uppercase; animation: pulse 1.2s ease-in-out infinite; }
-
-.weekStrip {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 6px;
-  scrollbar-width: thin;
+/* MODE CHOOSER (Reserve vs Walking In) */
+.modeChooser {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-bottom: 32px;
 }
-.weekStrip::-webkit-scrollbar { height: 4px; }
-.weekStrip::-webkit-scrollbar-thumb { background: rgba(34,197,94,0.3); }
-
-.dayCard {
-  flex: 0 0 auto;
-  min-width: 64px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
+.modeBtn {
   background: var(--dark2);
   border: 1px solid rgba(255,255,255,0.08);
-  padding: 12px 10px;
+  padding: 22px 24px;
+  text-align: left;
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
+  position: relative;
 }
-.dayCard:hover { border-color: rgba(34,197,94,0.5); }
-
-.dayCardSelected {
-  background: rgba(34,197,94,0.12);
+.modeBtn:hover { border-color: rgba(34,197,94,0.5); }
+.modeBtnSelected {
+  background: rgba(34,197,94,0.08);
   border-color: var(--green);
 }
-
-.dayDow {
-  font-size: 10px;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  font-weight: 600;
+.modeBtnSelected::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--green);
 }
-.dayCardSelected .dayDow { color: var(--green); }
-
-.dayNum {
+.modeBtnTitle {
   font-family: var(--font-barlow-condensed), sans-serif;
-  font-size: 24px;
-  font-weight: 900;
+  font-size: 22px;
+  font-weight: 800;
   color: var(--white);
-  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+.modeBtnSelected .modeBtnTitle { color: var(--green); }
+.modeBtnSub {
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  line-height: 1.4;
 }
 
-.dayMon {
+/* WALK-IN INFO CARD */
+.walkinCard {
+  background: var(--dark2);
+  border: 1px solid rgba(34,197,94,0.25);
+  padding: 32px;
+  margin-bottom: 40px;
+  position: relative;
+}
+.walkinCard::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--green);
+}
+.walkinTitle {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 32px;
+  font-weight: 900;
+  color: var(--green);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 6px;
+}
+.walkinSub {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+  letter-spacing: 0.3px;
+}
+.walkinInfo {
+  background: var(--dark3);
+  border: 1px solid rgba(255,255,255,0.06);
+  padding: 18px 22px;
+  margin-bottom: 18px;
+}
+.walkinRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  font-size: 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+}
+.walkinRow:last-child { border-bottom: none; }
+.walkinRow span:last-child { color: var(--white); font-weight: 600; }
+.walkinNote {
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  letter-spacing: 0.3px;
+}
+.walkinNote strong { color: var(--green); font-weight: 700; }
+
+/* DATE PICKER (month grid) */
+.datePicker { margin-bottom: 28px; }
+.dateHeader { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.loadingText { font-size: 12px; color: var(--green); letter-spacing: 1px; text-transform: uppercase; animation: pulse 1.2s ease-in-out infinite; }
+
+.monthHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.monthNav {
+  background: var(--dark2);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--white);
+  width: 36px;
+  height: 36px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+.monthNav:hover:not(:disabled) { border-color: var(--green); color: var(--green); }
+.monthNav:disabled { opacity: 0.25; cursor: not-allowed; }
+.monthLabel {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--white);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+
+.dowHeader {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.dowCell {
+  text-align: center;
   font-size: 10px;
   letter-spacing: 1px;
   text-transform: uppercase;
   color: var(--text-muted);
+  font-weight: 600;
+  padding: 6px 0;
 }
+
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+.monthCell {
+  aspect-ratio: 1;
+  background: var(--dark2);
+  border: 1px solid rgba(255,255,255,0.06);
+  color: var(--white);
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: var(--font-barlow-condensed), sans-serif;
+}
+.monthCell:hover:not(:disabled) { border-color: var(--green); }
+.monthCellSelected {
+  background: rgba(34,197,94,0.15);
+  border-color: var(--green);
+  color: var(--green);
+}
+.monthCellDisabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+.monthCellToday {
+  box-shadow: inset 0 -3px 0 var(--green);
+}
+.monthCellEmpty { aspect-ratio: 1; }
 
 /* LEGEND */
 .legend {
@@ -174,86 +306,58 @@
 }
 .hintGreen { color: var(--green); font-weight: 600; }
 
-/* TIME RANGE SLIDER */
-.slider {
-  padding: 18px 20px 8px;
+/* HOUR BOXES */
+.hourGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
   background: var(--dark2);
   border: 1px solid rgba(255,255,255,0.06);
+  padding: 14px;
 }
-
-.sliderTrack {
-  position: relative;
-  height: 44px;
-  background: rgba(34,197,94,0.12);
-  border-radius: 4px;
+.hourBox {
+  background: var(--dark3);
+  border: 1px solid rgba(34,197,94,0.18);
+  color: var(--white);
+  padding: 14px 8px;
   cursor: pointer;
-  touch-action: none;
-  user-select: none;
+  transition: all 0.15s;
+  font-family: inherit;
+  text-align: center;
 }
-
-.sliderBooked {
-  position: absolute;
-  top: 0; bottom: 0;
-  background: repeating-linear-gradient(
-    45deg,
-    rgba(239,68,68,0.35),
-    rgba(239,68,68,0.35) 4px,
-    rgba(239,68,68,0.18) 4px,
-    rgba(239,68,68,0.18) 8px
-  );
-  pointer-events: none;
+.hourBox:hover:not(:disabled) {
+  border-color: var(--green);
+  background: rgba(34,197,94,0.06);
 }
-
-.sliderRange {
-  position: absolute;
-  top: 0; bottom: 0;
-  background: var(--green);
-  pointer-events: none;
-}
-
-.sliderThumb {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  width: 22px;
-  height: 56px;
-  background: var(--white);
-  border: 2px solid var(--green);
-  border-radius: 4px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  cursor: grab;
-  touch-action: none;
-  padding: 0;
-  z-index: 2;
-}
-.sliderThumb:active { cursor: grabbing; }
-.sliderThumb::after {
-  content: '';
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%, -50%);
-  width: 2px;
-  height: 18px;
-  background: var(--green);
-  border-radius: 1px;
-}
-
-.sliderTicks {
-  position: relative;
-  height: 24px;
-  margin-top: 6px;
-}
-.sliderTick {
-  position: absolute;
-  top: 4px;
-  transform: translateX(-50%);
-  font-size: 10px;
-  color: var(--text-muted);
+.hourBoxLabel {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 15px;
+  font-weight: 700;
   letter-spacing: 0.5px;
-  text-transform: uppercase;
-  font-weight: 600;
+  display: block;
   white-space: nowrap;
 }
+.hourBoxSelected {
+  background: var(--green) !important;
+  border-color: var(--green) !important;
+  color: var(--black);
+}
+.hourBoxSelected .hourBoxLabel { color: var(--black); font-weight: 800; }
+.hourBoxLimited { border-color: rgba(234,179,8,0.4); }
+.hourBoxLimited .hourBoxLabel { color: #eab308; }
+.hourBoxBooked {
+  background: repeating-linear-gradient(
+    45deg,
+    rgba(239,68,68,0.18),
+    rgba(239,68,68,0.18) 4px,
+    rgba(239,68,68,0.08) 4px,
+    rgba(239,68,68,0.08) 8px
+  );
+  border-color: rgba(239,68,68,0.3);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.hourBoxBooked .hourBoxLabel { color: #ef4444; text-decoration: line-through; }
 
 /* DETAILS SECTION */
 .detailsSection { margin-bottom: 32px; }
@@ -362,6 +466,45 @@
 .sRow:last-child { border-bottom: none; }
 .green { color: var(--green) !important; }
 
+.bookerSuccessBlock {
+  background: rgba(34,197,94,0.06);
+  border: 1px solid rgba(34,197,94,0.25);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  text-align: left;
+}
+.bookerSuccessLabel {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--green);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.bookerSuccessName {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.bookerSuccessContact {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+}
+.bookerSuccessPlayers {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  letter-spacing: 0.3px;
+}
+
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .page { padding: 90px 20px 160px; }
@@ -370,7 +513,16 @@
   .confirmDetails { gap: 12px; justify-content: space-between; }
   .confirmRight { align-items: center; }
   .legend { flex-wrap: wrap; gap: 14px; }
-  .timePill { min-width: 80px; padding: 10px 12px; }
+  .modeChooser { grid-template-columns: 1fr; gap: 10px; margin-bottom: 24px; }
+  .modeBtn { padding: 16px 18px; }
+  .modeBtnTitle { font-size: 18px; }
+  .walkinCard { padding: 24px 20px; }
+  .walkinTitle { font-size: 26px; }
+  .hourGrid { grid-template-columns: repeat(2, 1fr); gap: 6px; padding: 10px; }
+  .hourBox { padding: 12px 6px; }
+  .hourBoxLabel { font-size: 14px; }
+  .monthLabel { font-size: 18px; }
+  .monthCell { font-size: 15px; }
 }
 
 @media (max-width: 480px) {
@@ -379,10 +531,11 @@
   .courtNum { font-size: 22px; }
   .courtLabel { font-size: 9px; letter-spacing: 1px; }
   .courtStatus { display: none; }
-  .timePill { min-width: 72px; }
-  .pillTime { font-size: 15px; }
   .stepperBtn { width: 40px; height: 40px; font-size: 20px; }
   .stepperValue { font-size: 24px; min-width: 32px; }
+  .hourBoxLabel { font-size: 13px; }
+  .dowCell { font-size: 9px; padding: 4px 0; }
+  .monthCell { font-size: 14px; }
 }
 
 @keyframes pulse {

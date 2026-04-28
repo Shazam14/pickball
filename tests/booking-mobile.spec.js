@@ -18,13 +18,21 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.screenshot({ path: 'test-results/m375-booking-01-initial.png', fullPage: true });
   });
 
-  test('booking — after court + time + details filled', async ({ page }) => {
+  test('booking — walking-in mode (PC.2)', async ({ page }) => {
+    await page.goto('http://localhost:3000/booking');
+    await page.waitForLoadState('networkidle');
+    await page.getByRole('button', { name: /Walking In/ }).click();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: 'test-results/m375-booking-walkin.png', fullPage: true });
+  });
+
+  test('booking — after court + hour-box + details filled (PC.3 hour boxes)', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
     await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
-    // Click slider track at ~25% (≈9 AM) to set a 1-hour selection
-    await page.locator('[class*="sliderTrack"]').click({ position: { x: 70, y: 22 } });
+    // Pick the 9AM–10AM hour box (PC.3)
+    await page.getByRole('button', { name: '9AM–10AM' }).click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
@@ -43,15 +51,16 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     }
   });
 
-  test('booking — multi-court (PB.3): two courts in one booking', async ({ page }) => {
+  test('booking — multi-court (PB.3) + multi-hour range (PC.3)', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
     // Pick court 1 then court 2 — both should remain selected (toggle add).
     await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
     await page.locator('div').filter({ hasText: /^2Court(Available|Selected)$/ }).first().click();
-    // Set a 1-hour selection at ~9 AM.
-    await page.locator('[class*="sliderTrack"]').click({ position: { x: 70, y: 22 } });
+    // Pick a 2-hour range: 9AM–10AM then 10AM–11AM (extend to 9-11).
+    await page.getByRole('button', { name: '9AM–10AM' }).click();
+    await page.getByRole('button', { name: '10AM–11AM' }).click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();

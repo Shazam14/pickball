@@ -42,6 +42,44 @@
 }
 .closeBtn:hover { color: var(--white); }
 
+.bookerBlock {
+  background: rgba(34,197,94,0.06);
+  border: 1px solid rgba(34,197,94,0.25);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.bookerLabel {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--green);
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.bookerName {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1.1;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
+.bookerContact {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  letter-spacing: 0.3px;
+}
+.bookerPlayers {
+  font-size: 12px;
+  color: var(--text-light);
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  letter-spacing: 0.3px;
+}
+
 .summary {
   background: var(--dark3);
   border: 1px solid rgba(34,197,94,0.1);
