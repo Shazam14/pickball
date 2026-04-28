@@ -9,16 +9,49 @@
 
 .header { margin-bottom: 40px; }
 
+.headerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
 .back {
   display: inline-block;
   font-size: 12px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
   color: var(--text-muted);
-  margin-bottom: 20px;
   transition: color 0.2s;
 }
 .back:hover { color: var(--green); }
+
+.conceptToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border: 1px solid rgba(34,197,94,0.3);
+  background: rgba(34,197,94,0.06);
+  text-decoration: none;
+  transition: background 0.2s, border-color 0.2s;
+}
+.conceptToggle:hover {
+  background: rgba(34,197,94,0.12);
+  border-color: rgba(34,197,94,0.5);
+}
+.conceptDot {
+  width: 14px; height: 14px; border-radius: 50%;
+  background: var(--green);
+  display: inline-block;
+}
+.conceptLabel {
+  font-size: 10px;
+  letter-spacing: 2px;
+  font-weight: 700;
+  color: var(--green);
+}
 
 .pageLabel { font-size: 11px; letter-spacing: 4px; text-transform: uppercase; color: var(--green); font-weight: 600; margin-bottom: 8px; }
 .pageTitle { font-family: var(--font-barlow-condensed), sans-serif; font-weight: 900; font-size: clamp(36px,5vw,56px); text-transform: uppercase; line-height: 1; }

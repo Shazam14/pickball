@@ -337,7 +337,13 @@ export default function BookingPage() {
       <Nav />
       <div className={styles.page}>
         <div className={styles.header}>
-          <Link href="/" className={styles.back}>← Back</Link>
+          <div className={styles.headerTop}>
+            <Link href="/" className={styles.back}>← Back</Link>
+            <Link href="/concept-b/booking" className={styles.conceptToggle} aria-label="Preview Concept B design">
+              <span className={styles.conceptDot} />
+              <span className={styles.conceptLabel}>TRY CONCEPT B →</span>
+            </Link>
+          </div>
           <div className={styles.pageLabel}>— Play Pickleball</div>
           <div className={styles.pageTitle}>Book a Court</div>
         </div>
