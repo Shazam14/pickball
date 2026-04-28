@@ -9,11 +9,11 @@ CREATE TABLE IF NOT EXISTS bookings (
   start_time      TIME NOT NULL,
   end_time        TIME NOT NULL,
   duration        INTEGER NOT NULL CHECK (duration IN (1, 2, 3)),
-  players         INTEGER NOT NULL CHECK (players IN (2, 4)),
+  players         INTEGER NOT NULL CHECK (players >= 1 AND players <= 20),
   customer_name   TEXT NOT NULL,
   customer_phone  TEXT NOT NULL,
   customer_email  TEXT,
-  payment_method  TEXT CHECK (payment_method IN ('gcash', 'maya', 'bpi')),
+  payment_method  TEXT CHECK (payment_method IN ('gcash', 'maya', 'gotyme')),
   payment_reference TEXT,
   status          TEXT NOT NULL DEFAULT 'locked'
                   CHECK (status IN ('locked', 'confirmed', 'cancelled', 'expired')),
@@ -38,3 +38,21 @@ CREATE POLICY "Public read confirmed" ON bookings
   FOR SELECT USING (status = 'confirmed');
 
 -- All writes go through service role (API routes) — no public insert/update
+
+-- Phase 2 — Booking players (QR gate pass)
+CREATE TABLE IF NOT EXISTS booking_players (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id      UUID NOT NULL REFERENCES bookings(id) ON DELETE CASCADE,
+  full_name       TEXT,
+  checkin_token   UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+  checked_in_at   TIMESTAMPTZ,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_booking_players_booking
+  ON booking_players (booking_id);
+CREATE INDEX IF NOT EXISTS idx_booking_players_token
+  ON booking_players (checkin_token);
+
+ALTER TABLE booking_players ENABLE ROW LEVEL SECURITY;
+-- No public policies; all access via service role.

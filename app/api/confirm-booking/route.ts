@@ -51,6 +51,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 
+  // Auto-create booking_players rows for QR gate passes.
+  // Row 1: booker pre-filled. Rows 2..N: blank, filled via /booking/[ref]/players.
+  const playerRows = Array.from({ length: confirmed.players }, (_, i) => ({
+    booking_id: confirmed.id,
+    full_name: i === 0 ? confirmed.customer_name : null,
+  }))
+  const { error: playersError } = await getSupabaseAdmin()
+    .from('booking_players')
+    .insert(playerRows)
+  if (playersError) {
+    // Booking is already confirmed; admin can backfill if this rare case hits.
+    console.error('booking_players insert failed:', playersError)
+  }
+
   // Send notifications (non-blocking)
   Promise.allSettled([
     sendConfirmationEmail(confirmed),
