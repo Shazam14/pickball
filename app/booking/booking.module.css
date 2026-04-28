@@ -1,6 +1,7 @@
 .page {
   position: relative;
   z-index: 1;
+  width: 100%;
   max-width: 1200px;
   margin: 0 auto;
   padding: 100px 40px 160px;
@@ -50,7 +51,7 @@
 
 .courtGrid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -103,6 +104,7 @@
 .timeline {
   display: flex;
   width: 100%;
+  min-width: 0;
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 3px;
   overflow-x: auto;
@@ -277,7 +279,7 @@
 /* RESPONSIVE */
 @media (max-width: 768px) {
   .page { padding: 90px 20px 160px; }
-  .courtGrid { grid-template-columns: repeat(5,1fr); gap: 6px; }
+  .courtGrid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
   .confirmPanel { padding: 16px 20px; flex-direction: column; gap: 12px; align-items: stretch; }
   .confirmDetails { gap: 12px; justify-content: space-between; }
   .confirmRight { align-items: center; }
@@ -286,8 +288,11 @@
 }
 
 @media (max-width: 480px) {
-  .courtGrid { grid-template-columns: repeat(5,1fr); gap: 4px; }
+  .courtGrid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+  .courtCard { padding: 14px 4px; }
   .courtNum { font-size: 22px; }
+  .courtLabel { font-size: 9px; letter-spacing: 1px; }
+  .courtStatus { display: none; }
   .timePill { min-width: 72px; }
   .pillTime { font-size: 15px; }
   .stepperBtn { width: 40px; height: 40px; font-size: 20px; }
