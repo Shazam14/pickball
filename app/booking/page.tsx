@@ -36,20 +36,23 @@ function today() {
 }
 
 const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MAX_DAYS_AHEAD = 60
 
-function buildMonthGrid(year: number, month: number) {
-  const first = new Date(year, month, 1)
-  const startWeekday = first.getDay()
+function buildMonthDays(year: number, month: number) {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const cells: ({ iso: string; day: number } | null)[] = []
-  for (let i = 0; i < startWeekday; i++) cells.push(null)
-  for (let d = 1; d <= daysInMonth; d++) {
-    cells.push({ iso: isoOf(new Date(year, month, d)), day: d })
+  const todayD = new Date()
+  const todayISO_ = isoOf(todayD)
+  const isCurrentMonth = year === todayD.getFullYear() && month === todayD.getMonth()
+  const startDay = isCurrentMonth ? todayD.getDate() : 1
+  const out: { iso: string; day: number; dow: string; isToday: boolean }[] = []
+  for (let d = startDay; d <= daysInMonth; d++) {
+    const dt = new Date(year, month, d)
+    const iso = isoOf(dt)
+    out.push({ iso, day: d, dow: DOW[dt.getDay()], isToday: iso === todayISO_ })
   }
-  while (cells.length % 7) cells.push(null)
-  return cells
+  return out
 }
 
 function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
@@ -390,7 +393,7 @@ export default function BookingPage() {
             const todayISO = isoOf(todayD)
             const maxD = new Date(todayD.getFullYear(), todayD.getMonth(), todayD.getDate() + MAX_DAYS_AHEAD)
             const maxISO = isoOf(maxD)
-            const cells = buildMonthGrid(viewMonth.y, viewMonth.m)
+            const days = buildMonthDays(viewMonth.y, viewMonth.m)
             const isCurrentViewMonth = viewMonth.y === todayD.getFullYear() && viewMonth.m === todayD.getMonth()
             const lastDayOfView = new Date(viewMonth.y, viewMonth.m + 1, 0)
             const canGoNext = isoOf(new Date(lastDayOfView.getFullYear(), lastDayOfView.getMonth() + 1, 1)) <= maxISO
@@ -413,24 +416,21 @@ export default function BookingPage() {
                     aria-label="Next month"
                   >›</button>
                 </div>
-                <div className={styles.dowHeader}>
-                  {DOW.map(d => <div key={d} className={styles.dowCell}>{d}</div>)}
-                </div>
-                <div className={styles.monthGrid}>
-                  {cells.map((cell, i) => {
-                    if (!cell) return <div key={`empty-${i}`} className={styles.monthCellEmpty} />
-                    const disabled = cell.iso < todayISO || cell.iso > maxISO
-                    const selected = cell.iso === date
-                    const isToday = cell.iso === todayISO
+                <div className={styles.weekStrip}>
+                  {days.map(d => {
+                    const disabled = d.iso < todayISO || d.iso > maxISO
+                    const selected = d.iso === date
                     return (
                       <button
-                        key={cell.iso}
+                        key={d.iso}
                         type="button"
-                        className={`${styles.monthCell} ${selected ? styles.monthCellSelected : ''} ${disabled ? styles.monthCellDisabled : ''} ${isToday ? styles.monthCellToday : ''}`}
+                        className={`${styles.dayCard} ${selected ? styles.dayCardSelected : ''} ${disabled ? styles.dayCardDisabled : ''}`}
                         disabled={disabled}
-                        onClick={() => setDate(cell.iso)}
+                        onClick={() => setDate(d.iso)}
                       >
-                        {cell.day}
+                        <span className={styles.dayDow}>{d.isToday ? 'Today' : d.dow}</span>
+                        <span className={styles.dayNum}>{d.day}</span>
+                        <span className={styles.dayMon}>{MON[viewMonth.m]}</span>
                       </button>
                     )
                   })}

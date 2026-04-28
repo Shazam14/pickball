@@ -30,9 +30,15 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
+    // Jump to next month + first day for a clean availability slate.
+    await page.getByRole('button', { name: 'Next month' }).click();
+    await page.waitForTimeout(200);
+    await page.locator('button[class*="dayCard"]').first().click();
+    await page.waitForTimeout(500);
+
     await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
-    // Pick the 9AM–10AM hour box (PC.3)
-    await page.getByRole('button', { name: '9AM–10AM' }).click();
+    // Pick the 7AM–8AM hour box (PC.3)
+    await page.getByRole('button', { name: '7AM–8AM' }).click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
@@ -55,12 +61,18 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
+    // Jump to next month + first day for a clean availability slate.
+    await page.getByRole('button', { name: 'Next month' }).click();
+    await page.waitForTimeout(200);
+    await page.locator('button[class*="dayCard"]').first().click();
+    await page.waitForTimeout(500);
+
     // Pick court 1 then court 2 — both should remain selected (toggle add).
     await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
     await page.locator('div').filter({ hasText: /^2Court(Available|Selected)$/ }).first().click();
-    // Pick a 2-hour range: 9AM–10AM then 10AM–11AM (extend to 9-11).
-    await page.getByRole('button', { name: '9AM–10AM' }).click();
-    await page.getByRole('button', { name: '10AM–11AM' }).click();
+    // Pick a 2-hour range by extending: 7AM–8AM, then 8AM–9AM.
+    await page.getByRole('button', { name: '7AM–8AM' }).click();
+    await page.getByRole('button', { name: '8AM–9AM' }).click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
