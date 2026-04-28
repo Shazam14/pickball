@@ -6,35 +6,37 @@ import { sendConfirmationEmail, sendConfirmationSMS } from '@/lib/notifications'
 // POST /api/confirm-booking
 export async function POST(req: NextRequest) {
   const body: ConfirmBookingRequest = await req.json()
-  const { booking_id, payment_method, payment_reference } = body
+  const { reference, payment_method, payment_reference } = body
 
-  if (!booking_id || !payment_method || !payment_reference) {
+  if (!reference || !payment_method || !payment_reference) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
-  // Fetch booking and verify it's still locked and not expired
-  const { data: booking, error: fetchError } = await getSupabaseAdmin()
+  // Fetch all rows for this reference (multi-court bookings share a reference).
+  const { data: locked, error: fetchError } = await getSupabaseAdmin()
     .from('bookings')
     .select('*')
-    .eq('id', booking_id)
+    .eq('reference', reference)
     .eq('status', 'locked')
-    .single()
+    .order('court_number', { ascending: true })
 
-  if (fetchError || !booking) {
+  if (fetchError || !locked || locked.length === 0) {
     return NextResponse.json({ error: 'Booking not found or already expired' }, { status: 404 })
   }
 
-  if (new Date(booking.locked_until) < new Date()) {
-    // Lock expired — mark as expired
+  // Lock expiry — all rows share the same locked_until from lock-slot.
+  const lockedUntil = locked[0].locked_until
+  if (lockedUntil && new Date(lockedUntil) < new Date()) {
     await getSupabaseAdmin()
       .from('bookings')
       .update({ status: 'expired' })
-      .eq('id', booking_id)
+      .eq('reference', reference)
+      .eq('status', 'locked')
     return NextResponse.json({ error: 'Booking lock expired. Please start over.' }, { status: 410 })
   }
 
-  // Confirm the booking
-  const { data: confirmed, error: updateError } = await getSupabaseAdmin()
+  // Confirm all rows in one update.
+  const { data: confirmedRows, error: updateError } = await getSupabaseAdmin()
     .from('bookings')
     .update({
       status: 'confirmed',
@@ -43,46 +45,57 @@ export async function POST(req: NextRequest) {
       confirmed_at: new Date().toISOString(),
       locked_until: null,
     })
-    .eq('id', booking_id)
+    .eq('reference', reference)
+    .eq('status', 'locked')
     .select()
-    .single()
+    .order('court_number', { ascending: true })
 
-  if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 })
+  if (updateError || !confirmedRows || confirmedRows.length === 0) {
+    return NextResponse.json({ error: updateError?.message || 'Confirm failed' }, { status: 500 })
   }
 
-  // Auto-create booking_players rows for QR gate passes.
-  // Row 1: booker pre-filled. Rows 2..N: blank, filled via /booking/[ref]/players.
-  const playerRows = Array.from({ length: confirmed.players }, (_, i) => ({
-    booking_id: confirmed.id,
-    full_name: i === 0 ? confirmed.customer_name : null,
-  }))
-  const { error: playersError } = await getSupabaseAdmin()
+  const lead = confirmedRows[0]
+  const courtNumbers = confirmedRows.map(b => b.court_number)
+
+  // Auto-create booking_players rows ONCE per reference (not per court).
+  // Anchor to the lead row (lowest court_number). Skip if already inserted.
+  const { data: existingPlayers } = await getSupabaseAdmin()
     .from('booking_players')
-    .insert(playerRows)
-  if (playersError) {
-    // Booking is already confirmed; admin can backfill if this rare case hits.
-    console.error('booking_players insert failed:', playersError)
+    .select('id')
+    .eq('booking_id', lead.id)
+    .limit(1)
+
+  if (!existingPlayers || existingPlayers.length === 0) {
+    const playerRows = Array.from({ length: lead.players }, (_, i) => ({
+      booking_id: lead.id,
+      full_name: i === 0 ? lead.customer_name : null,
+    }))
+    const { error: playersError } = await getSupabaseAdmin()
+      .from('booking_players')
+      .insert(playerRows)
+    if (playersError) {
+      console.error('booking_players insert failed:', playersError)
+    }
   }
 
-  // Send notifications (non-blocking)
+  // Send notifications ONCE per reference (non-blocking).
   Promise.allSettled([
-    sendConfirmationEmail(confirmed),
-    sendConfirmationSMS(confirmed),
+    sendConfirmationEmail(lead),
+    sendConfirmationSMS(lead),
   ])
 
   return NextResponse.json({
     success: true,
-    reference: confirmed.reference,
+    reference: lead.reference,
     booking: {
-      court_number: confirmed.court_number,
-      booking_date: confirmed.booking_date,
-      start_time: confirmed.start_time,
-      end_time: confirmed.end_time,
-      customer_name: confirmed.customer_name,
-      payment_method: confirmed.payment_method,
-      duration: confirmed.duration,
-      players: confirmed.players,
+      court_numbers: courtNumbers,
+      booking_date: lead.booking_date,
+      start_time: lead.start_time,
+      end_time: lead.end_time,
+      customer_name: lead.customer_name,
+      payment_method: lead.payment_method,
+      duration: lead.duration,
+      players: lead.players,
     },
   })
 }

@@ -5,9 +5,9 @@ import { LockSlotRequest, LOCK_DURATION_MINUTES } from '@/lib/types'
 // POST /api/lock-slot
 export async function POST(req: NextRequest) {
   const body: LockSlotRequest = await req.json()
-  const { court_number, booking_date, start_time, duration, players, customer_name, customer_phone, customer_email } = body
+  const { court_numbers, booking_date, start_time, duration, players, customer_name, customer_phone, customer_email } = body
 
-  if (!court_number || !booking_date || !start_time || !duration || !customer_name || !customer_phone) {
+  if (!Array.isArray(court_numbers) || court_numbers.length === 0 || !booking_date || !start_time || !duration || !customer_name || !customer_phone) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
@@ -15,62 +15,57 @@ export async function POST(req: NextRequest) {
   const endHour = startHour + duration
   const end_time = `${String(endHour).padStart(2, '0')}:00`
   const locked_until = new Date(Date.now() + LOCK_DURATION_MINUTES * 60 * 1000).toISOString()
+  const nowIso = new Date().toISOString()
 
-  // Check no confirmed/locked booking already exists for this slot
-  const { data: conflicts } = await getSupabaseAdmin()
+  // Conflict check across ALL requested courts (all-or-nothing).
+  // Confirmed bookings or active (non-expired) locks that overlap the time window.
+  const { data: conflicts, error: conflictError } = await getSupabaseAdmin()
     .from('bookings')
-    .select('id')
-    .eq('court_number', court_number)
+    .select('court_number, status, locked_until')
+    .in('court_number', court_numbers)
     .eq('booking_date', booking_date)
     .in('status', ['locked', 'confirmed'])
-    .or(
-      `and(start_time.lt.${end_time},end_time.gt.${start_time})`
-    )
-    .filter('status', 'eq', 'confirmed')
+    .lt('start_time', end_time)
+    .gt('end_time', start_time)
 
-  // Also check non-expired locks
-  const { data: activeLocks } = await getSupabaseAdmin()
-    .from('bookings')
-    .select('id')
-    .eq('court_number', court_number)
-    .eq('booking_date', booking_date)
-    .eq('status', 'locked')
-    .gt('locked_until', new Date().toISOString())
-
-  const hasConflict = (conflicts && conflicts.length > 0) || (activeLocks && activeLocks.length > 0)
-  if (hasConflict) {
-    return NextResponse.json({ error: 'This slot was just taken. Please choose another.' }, { status: 409 })
+  if (conflictError) {
+    return NextResponse.json({ error: conflictError.message }, { status: 500 })
   }
 
-  // Generate reference
+  const hasConflict = (conflicts ?? []).some(c =>
+    c.status === 'confirmed' || (c.locked_until && c.locked_until > nowIso)
+  )
+  if (hasConflict) {
+    return NextResponse.json({ error: 'One of the selected courts was just taken. Please choose another.' }, { status: 409 })
+  }
+
+  // Single shared reference across all rows.
   const reference = 'SO-' + Date.now().toString().slice(-8)
 
-  const { data: booking, error } = await getSupabaseAdmin()
-    .from('bookings')
-    .insert({
-      reference,
-      court_number,
-      booking_date,
-      start_time,
-      end_time,
-      duration,
-      players,
-      customer_name,
-      customer_phone,
-      customer_email: customer_email || null,
-      status: 'locked',
-      locked_until,
-    })
-    .select()
-    .single()
+  const rows = court_numbers.map(c => ({
+    reference,
+    court_number: c,
+    booking_date,
+    start_time,
+    end_time,
+    duration,
+    players,
+    customer_name,
+    customer_phone,
+    customer_email: customer_email || null,
+    status: 'locked' as const,
+    locked_until,
+  }))
+
+  const { error } = await getSupabaseAdmin().from('bookings').insert(rows)
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   return NextResponse.json({
-    booking_id: booking.id,
-    reference: booking.reference,
-    locked_until: booking.locked_until,
+    reference,
+    locked_until,
+    court_numbers,
   })
 }

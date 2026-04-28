@@ -33,7 +33,7 @@ export interface CourtAvailability {
 }
 
 export interface LockSlotRequest {
-  court_number: number
+  court_numbers: number[]
   booking_date: string
   start_time: string
   duration: number
@@ -44,7 +44,7 @@ export interface LockSlotRequest {
 }
 
 export interface ConfirmBookingRequest {
-  booking_id: string
+  reference: string
   payment_method: PaymentMethod
   payment_reference: string
 }

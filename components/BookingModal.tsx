@@ -6,10 +6,9 @@ import { PaymentMethod } from '@/lib/types'
 import styles from './BookingModal.module.css'
 
 interface BookingDetails {
-  bookingId: string
   reference: string
   lockedUntil: string
-  courtNumber: number
+  courtNumbers: number[]
   bookingDate: string
   startTime: string
   endTime: string
@@ -89,7 +88,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          booking_id: details.bookingId,
+          reference: details.reference,
           payment_method: method,
           payment_reference: opts?.onsite ? 'ONSITE' : reference.trim(),
         }),
@@ -121,7 +120,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
         {/* Booking summary */}
         <div className={styles.summary}>
           <div className={styles.summaryRow}>
-            <span>Court</span><span>Court {details.courtNumber}</span>
+            <span>{details.courtNumbers.length > 1 ? 'Courts' : 'Court'}</span><span>{details.courtNumbers.map(n => `Court ${n}`).join(', ')}</span>
           </div>
           <div className={styles.summaryRow}>
             <span>Date</span><span>{details.bookingDate}</span>
@@ -133,7 +132,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
             <span>Players</span><span>{details.players}</span>
           </div>
           <div className={styles.summaryRow}>
-            <span>Court ({details.duration}h)</span><span>₱{details.courtFee.toLocaleString()}</span>
+            <span>{details.courtNumbers.length > 1 ? `${details.courtNumbers.length} Courts × ${details.duration}h` : `Court (${details.duration}h)`}</span><span>₱{details.courtFee.toLocaleString()}</span>
           </div>
           <div className={styles.summaryRow}>
             <span>Entrance ({details.players}× ₱50)</span><span>₱{details.entranceFee.toLocaleString()}</span>

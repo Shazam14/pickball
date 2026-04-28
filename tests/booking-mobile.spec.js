@@ -42,6 +42,26 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
       await confirmPanel.screenshot({ path: 'test-results/m375-booking-04-confirm.png' });
     }
   });
+
+  test('booking — multi-court (PB.3): two courts in one booking', async ({ page }) => {
+    await page.goto('http://localhost:3000/booking');
+    await page.waitForLoadState('networkidle');
+
+    // Pick court 1 then court 2 — both should remain selected (toggle add).
+    await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
+    await page.locator('div').filter({ hasText: /^2Court(Available|Selected)$/ }).first().click();
+    // Set a 1-hour selection at ~9 AM.
+    await page.locator('[class*="sliderTrack"]').click({ position: { x: 70, y: 22 } });
+    await page.waitForTimeout(300);
+
+    await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: 'test-results/m375-booking-05-multicourt.png', fullPage: true });
+
+    const confirmPanel = page.locator('[class*="confirmPanel"]');
+    if (await confirmPanel.count() > 0) {
+      await confirmPanel.screenshot({ path: 'test-results/m375-booking-06-multicourt-confirm.png' });
+    }
+  });
 });
 
 test.describe('mobile @ 412 (Pixel 7 width)', () => {

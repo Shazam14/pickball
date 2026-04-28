@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS bookings (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  reference       TEXT UNIQUE NOT NULL,
+  reference       TEXT NOT NULL,
   court_number    INTEGER NOT NULL CHECK (court_number BETWEEN 1 AND 10),
   booking_date    DATE NOT NULL,
   start_time      TIME NOT NULL,
@@ -29,6 +29,10 @@ CREATE INDEX IF NOT EXISTS idx_bookings_availability
 -- Index for admin views
 CREATE INDEX IF NOT EXISTS idx_bookings_date
   ON bookings (booking_date, status);
+
+-- Multi-court bookings share a reference; index for lookups by reference.
+CREATE INDEX IF NOT EXISTS idx_bookings_reference
+  ON bookings (reference);
 
 -- Enable Row Level Security
 ALTER TABLE bookings ENABLE ROW LEVEL SECURITY;

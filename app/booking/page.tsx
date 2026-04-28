@@ -68,9 +68,9 @@ const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN  // 16
 
 function pctFor(h: number) { return ((h - HOUR_MIN) / SLOTS_TOTAL) * 100 }
 
-interface LockResponse { bookingId: string; reference: string; lockedUntil: string }
+interface LockResponse { reference: string; lockedUntil: string; courtNumbers: number[] }
 interface SuccessData {
-  reference: string; courtNumber: number; bookingDate: string
+  reference: string; courtNumbers: number[]; bookingDate: string
   startTime: string; endTime: string; duration: number; price: number
 }
 
@@ -79,7 +79,7 @@ export default function BookingPage() {
   const [slots, setSlots] = useState<SlotMatrix>({})
   const [loading, setLoading] = useState(false)
 
-  const [selectedCourt, setSelectedCourt] = useState<number | null>(null)
+  const [selectedCourts, setSelectedCourts] = useState<number[]>([])
   const [selectedStart, setSelectedStart] = useState<string | null>(null)
   const [selectedEnd, setSelectedEnd] = useState<string | null>(null)
 
@@ -99,11 +99,12 @@ export default function BookingPage() {
     : selectedStart ? 1 : 0
 
   const endTime = selectedEnd ?? (selectedStart ? toTime(hourOf(selectedStart) + 1) : null)
-  const courtFee = duration * COURT_PRICE_PER_HOUR
+  const courtFee = duration * COURT_PRICE_PER_HOUR * selectedCourts.length
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const price = courtFee + entranceFee
 
   const formValid =
+    selectedCourts.length > 0 &&
     customerName.trim().length > 0 &&
     customerPhone.trim().length > 0 &&
     customerEmail.trim().length > 0 &&
@@ -111,7 +112,7 @@ export default function BookingPage() {
 
   const fetchAvailability = useCallback(async (d: string) => {
     setLoading(true)
-    setSelectedCourt(null)
+    setSelectedCourts([])
     setSelectedStart(null)
     setSelectedEnd(null)
     try {
@@ -148,16 +149,19 @@ export default function BookingPage() {
   const isSlotTaken = (court: number, time: string) =>
     !(slots[time]?.find(s => s.court === court)?.available ?? true)
 
-  // Check all hours in a range are free
+  // Check all hours in a range are free across ALL selected courts.
   const isRangeClear = useCallback((startH: number, endH: number) => {
     for (let h = startH; h < endH; h++) {
       const t = toTime(h)
-      if (selectedCourt && isSlotTaken(selectedCourt, t)) return false
-      if (getTimeStatus(t, slots) === 'booked') return false
+      if (selectedCourts.length > 0) {
+        if (selectedCourts.some(c => isSlotTaken(c, t))) return false
+      } else {
+        if (getTimeStatus(t, slots) === 'booked') return false
+      }
     }
     return true
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCourt, slots])
+  }, [selectedCourts, slots])
 
   // ---- TIME RANGE SLIDER ----
   const trackRef = useRef<HTMLDivElement>(null)
@@ -170,9 +174,10 @@ export default function BookingPage() {
     const out: number[] = []
     for (let h = HOUR_MIN; h < HOUR_MAX; h++) {
       const t = toTime(h)
-      if ((selectedCourt && isSlotTaken(selectedCourt, t)) || getTimeStatus(t, slots) === 'booked') {
-        out.push(h)
-      }
+      const taken = selectedCourts.length > 0
+        ? selectedCourts.some(c => isSlotTaken(c, t))
+        : getTimeStatus(t, slots) === 'booked'
+      if (taken) out.push(h)
     }
     return out
   })()
@@ -236,18 +241,27 @@ export default function BookingPage() {
   }
 
   const handleCourtSelect = (court: number) => {
-    setSelectedCourt(prev => prev === court ? null : court)
-    setSelectedStart(null)
-    setSelectedEnd(null)
+    setSelectedCourts(prev => prev.includes(court) ? prev.filter(c => c !== court) : [...prev, court].sort((a, b) => a - b))
     setLockError('')
   }
 
-  const availableCourtsForTime = selectedStart
-    ? (slots[selectedStart] || []).filter(s => s.available).map(s => s.court)
-    : Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)
+  // A court is available for the current selection if free across the entire
+  // chosen range (or just at the start hour if no end yet).
+  const availableCourtsForTime = (() => {
+    const all = Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)
+    if (!selectedStart) return all
+    const startH = hourOf(selectedStart)
+    const endH = selectedEnd ? hourOf(selectedEnd) : startH + 1
+    return all.filter(c => {
+      for (let h = startH; h < endH; h++) {
+        if (isSlotTaken(c, toTime(h))) return false
+      }
+      return true
+    })
+  })()
 
   async function handleLockAndPay() {
-    if (!selectedCourt || !selectedStart || !endTime || !formValid) return
+    if (selectedCourts.length === 0 || !selectedStart || !endTime || !formValid) return
     setLocking(true)
     setLockError('')
     try {
@@ -255,7 +269,7 @@ export default function BookingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          court_number: selectedCourt,
+          court_numbers: selectedCourts,
           booking_date: date,
           start_time: selectedStart,
           duration,
@@ -267,7 +281,7 @@ export default function BookingPage() {
       })
       const data = await res.json()
       if (!res.ok) { setLockError(data.error || 'Could not lock slot. Try again.'); return }
-      setLockData({ bookingId: data.booking_id, reference: data.reference, lockedUntil: data.locked_until })
+      setLockData({ reference: data.reference, lockedUntil: data.locked_until, courtNumbers: data.court_numbers })
       setShowModal(true)
     } finally {
       setLocking(false)
@@ -283,8 +297,8 @@ export default function BookingPage() {
 
   function handleSuccess(reference: string) {
     setShowModal(false)
-    setSuccess({ reference, courtNumber: selectedCourt!, bookingDate: date, startTime: selectedStart!, endTime: endTime!, duration, price })
-    setSelectedCourt(null); setSelectedStart(null); setSelectedEnd(null)
+    setSuccess({ reference, courtNumbers: [...selectedCourts], bookingDate: date, startTime: selectedStart!, endTime: endTime!, duration, price })
+    setSelectedCourts([]); setSelectedStart(null); setSelectedEnd(null)
     setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4)
     fetchAvailability(date)
   }
@@ -300,7 +314,7 @@ export default function BookingPage() {
             <div className={styles.successSub}>See you on the court. Check your phone for confirmation.</div>
             <div className={styles.successSummary}>
               <div className={styles.sRow}><span>Ref #</span><span className={styles.green}>{success.reference}</span></div>
-              <div className={styles.sRow}><span>Court</span><span>Court {success.courtNumber}</span></div>
+              <div className={styles.sRow}><span>{success.courtNumbers.length > 1 ? 'Courts' : 'Court'}</span><span>{success.courtNumbers.map(n => `Court ${n}`).join(', ')}</span></div>
               <div className={styles.sRow}><span>Date</span><span>{success.bookingDate}</span></div>
               <div className={styles.sRow}><span>Time</span><span>{formatTime(success.startTime)} — {formatTime(success.endTime)}</span></div>
               <div className={styles.sRow}><span>Duration</span><span>{success.duration}h</span></div>
@@ -360,13 +374,15 @@ export default function BookingPage() {
 
         {/* STEP 1 */}
         <div className={styles.courtSection}>
-          <div className={styles.sectionLabel}>01 — Select Court</div>
+          <div className={styles.sectionLabel}>01 — Select Court(s)</div>
+          <div className={styles.courtHint}>Tap multiple courts to book them together (tournaments).</div>
           <div className={styles.courtGrid}>
             {Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1).map(c => {
               const available = availableCourtsForTime.includes(c)
-              const selected = selectedCourt === c
+              const selected = selectedCourts.includes(c)
               return (
                 <div key={c} className={`${styles.courtCard} ${!available ? styles.courtTaken : ''} ${selected ? styles.courtSelected : ''}`} onClick={() => available && handleCourtSelect(c)}>
+                  {selected && <div className={styles.courtCheck}>✓</div>}
                   <div className={styles.courtNum}>{c}</div>
                   <div className={styles.courtLabel}>Court</div>
                   <div className={styles.courtStatus}>{selected ? 'Selected' : available ? 'Available' : 'Taken'}</div>
@@ -442,7 +458,7 @@ export default function BookingPage() {
         </div>
 
         {/* STEP 3 — DETAILS */}
-        {selectedCourt && selectedStart && (
+        {selectedCourts.length > 0 && selectedStart && (
           <div className={styles.detailsSection}>
             <div className={styles.sectionLabel}>03 — Your Details</div>
             <p className={styles.detailsNote}>
@@ -501,10 +517,10 @@ export default function BookingPage() {
         )}
 
         {/* CONFIRM */}
-        {selectedCourt && selectedStart && (
+        {selectedCourts.length > 0 && selectedStart && (
           <div className={styles.confirmPanel}>
             <div className={styles.confirmDetails}>
-              <div className={styles.confirmItem}><div className={styles.confirmVal}>Court {selectedCourt}</div><div className={styles.confirmKey}>Court</div></div>
+              <div className={styles.confirmItem}><div className={styles.confirmVal}>{selectedCourts.length === 1 ? `Court ${selectedCourts[0]}` : `Courts ${selectedCourts.join(', ')}`}</div><div className={styles.confirmKey}>{selectedCourts.length === 1 ? 'Court' : `${selectedCourts.length} Courts`}</div></div>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(selectedStart)}</div><div className={styles.confirmKey}>Start</div></div>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(endTime!)}</div><div className={styles.confirmKey}>End</div></div>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{duration}h</div><div className={styles.confirmKey}>Duration</div></div>
@@ -527,7 +543,7 @@ export default function BookingPage() {
 
       {showModal && lockData && selectedStart && endTime && (
         <BookingModal
-          details={{ bookingId: lockData.bookingId, reference: lockData.reference, lockedUntil: lockData.lockedUntil, courtNumber: selectedCourt!, bookingDate: date, startTime: selectedStart, endTime: endTime, duration, players, price, courtFee, entranceFee }}
+          details={{ reference: lockData.reference, lockedUntil: lockData.lockedUntil, courtNumbers: lockData.courtNumbers, bookingDate: date, startTime: selectedStart, endTime: endTime, duration, players, price, courtFee, entranceFee }}
           onSuccess={handleSuccess}
           onExpire={handleExpire}
           onClose={() => setShowModal(false)}
