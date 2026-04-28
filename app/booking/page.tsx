@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
 import BookingModal from '@/components/BookingModal'
-import { TIME_SLOTS, TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
+import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
@@ -31,6 +31,26 @@ function today() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const WEEK_STRIP_DAYS = 14
+
+function dateRangeFromToday(days: number) {
+  const out: { iso: string; dow: string; day: number; mon: string; isToday: boolean }[] = []
+  const now = new Date()
+  for (let i = 0; i < days; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i)
+    out.push({
+      iso: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`,
+      dow: DOW[d.getDay()],
+      day: d.getDate(),
+      mon: MON[d.getMonth()],
+      isToday: i === 0,
+    })
+  }
+  return out
+}
+
 function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
   if (!slots[time]) return 'available'
   const count = slots[time].filter(s => s.available).length
@@ -41,6 +61,12 @@ function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
 
 function hourOf(t: string) { return parseInt(t.split(':')[0]) }
 function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
+
+const HOUR_MIN = 6
+const HOUR_MAX = 22  // exclusive — last possible end-time is 22:00 (10 PM)
+const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN  // 16
+
+function pctFor(h: number) { return ((h - HOUR_MIN) / SLOTS_TOTAL) * 100 }
 
 interface LockResponse { bookingId: string; reference: string; lockedUntil: string }
 interface SuccessData {
@@ -122,62 +148,91 @@ export default function BookingPage() {
   const isSlotTaken = (court: number, time: string) =>
     !(slots[time]?.find(s => s.court === court)?.available ?? true)
 
-  const isSegmentBooked = (t: string) => {
-    if (selectedCourt && isSlotTaken(selectedCourt, t)) return true
-    return getTimeStatus(t, slots) === 'booked'
-  }
-
   // Check all hours in a range are free
-  const isRangeClear = (startH: number, endH: number) => {
+  const isRangeClear = useCallback((startH: number, endH: number) => {
     for (let h = startH; h < endH; h++) {
-      if (isSegmentBooked(toTime(h))) return false
+      const t = toTime(h)
+      if (selectedCourt && isSlotTaken(selectedCourt, t)) return false
+      if (getTimeStatus(t, slots) === 'booked') return false
     }
     return true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCourt, slots])
+
+  // ---- TIME RANGE SLIDER ----
+  const trackRef = useRef<HTMLDivElement>(null)
+  const draggingRef = useRef<'start' | 'end' | null>(null)
+
+  const startH = selectedStart ? hourOf(selectedStart) : null
+  const endH = selectedEnd ? hourOf(selectedEnd) : (startH != null ? startH + 1 : null)
+
+  const bookedHours = (() => {
+    const out: number[] = []
+    for (let h = HOUR_MIN; h < HOUR_MAX; h++) {
+      const t = toTime(h)
+      if ((selectedCourt && isSlotTaken(selectedCourt, t)) || getTimeStatus(t, slots) === 'booked') {
+        out.push(h)
+      }
+    }
+    return out
+  })()
+
+  const stateRef = useRef({ startH, endH, isRangeClear, bookedHours })
+  stateRef.current = { startH, endH, isRangeClear, bookedHours }
+
+  const hourFromClientX = (clientX: number) => {
+    const el = trackRef.current
+    if (!el) return HOUR_MIN
+    const rect = el.getBoundingClientRect()
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    return HOUR_MIN + Math.round(ratio * SLOTS_TOTAL)
   }
 
-  const handleTimeClick = (time: string) => {
-    if (isSegmentBooked(time)) return
+  useEffect(() => {
+    function onMove(e: PointerEvent) {
+      if (!draggingRef.current) return
+      e.preventDefault()
+      const { startH, endH, isRangeClear } = stateRef.current
+      const h = hourFromClientX(e.clientX)
+      if (draggingRef.current === 'start') {
+        const limit = (endH ?? HOUR_MAX) - 1
+        const newStart = Math.max(HOUR_MIN, Math.min(h, limit))
+        if (endH != null && !isRangeClear(newStart, endH)) return
+        setSelectedStart(toTime(newStart))
+        if (endH == null) setSelectedEnd(toTime(newStart + 1))
+      } else {
+        const lower = (startH ?? HOUR_MIN) + 1
+        const newEnd = Math.max(lower, Math.min(h, HOUR_MAX))
+        if (startH != null && !isRangeClear(startH, newEnd)) return
+        setSelectedEnd(toTime(newEnd))
+      }
+    }
+    function onUp() { draggingRef.current = null }
+    window.addEventListener('pointermove', onMove)
+    window.addEventListener('pointerup', onUp)
+    window.addEventListener('pointercancel', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointercancel', onUp)
+    }
+  }, [])
+
+  function startDrag(thumb: 'start' | 'end') {
+    return (e: React.PointerEvent) => {
+      e.preventDefault()
+      draggingRef.current = thumb
+      setLockError('')
+    }
+  }
+
+  function handleTrackClick(e: React.MouseEvent<HTMLDivElement>) {
+    if (draggingRef.current) return
+    const h = hourFromClientX(e.clientX)
+    if (bookedHours.includes(h)) return
     setLockError('')
-
-    if (!selectedStart) {
-      setSelectedStart(time)
-      setSelectedEnd(null)
-      return
-    }
-
-    const clickedH = hourOf(time)
-    const startH = hourOf(selectedStart)
-
-    if (clickedH === startH) {
-      // Tap same slot → deselect
-      setSelectedStart(null)
-      setSelectedEnd(null)
-      return
-    }
-
-    if (clickedH < startH) {
-      // Tapped before start → restart from here
-      setSelectedStart(time)
-      setSelectedEnd(null)
-      return
-    }
-
-    // Tapped after start → try to extend range
-    if (isRangeClear(startH, clickedH + 1)) {
-      setSelectedEnd(toTime(clickedH + 1))
-    } else {
-      // Range has a booked slot — restart from tapped time
-      setSelectedStart(time)
-      setSelectedEnd(null)
-    }
-  }
-
-  const isInRange = (t: string) => {
-    if (!selectedStart) return false
-    const h = hourOf(t)
-    const startH = hourOf(selectedStart)
-    const endH = selectedEnd ? hourOf(selectedEnd) : startH + 1
-    return h >= startH && h < endH
+    setSelectedStart(toTime(h))
+    setSelectedEnd(toTime(h + 1))
   }
 
   const handleCourtSelect = (court: number) => {
@@ -273,10 +328,26 @@ export default function BookingPage() {
 
         {/* DATE */}
         <div className={styles.datePicker}>
-          <label className="field-label">Select Date</label>
-          <div className={styles.dateRow}>
-            <input type="date" className="field-input" style={{ maxWidth: 260 }} value={date} min={today()} onChange={e => setDate(e.target.value)} />
+          <div className={styles.dateHeader}>
+            <label className="field-label">Select Date</label>
             {loading && <span className={styles.loadingText}>Checking availability…</span>}
+          </div>
+          <div className={styles.weekStrip}>
+            {dateRangeFromToday(WEEK_STRIP_DAYS).map(d => {
+              const selected = d.iso === date
+              return (
+                <button
+                  key={d.iso}
+                  type="button"
+                  className={`${styles.dayCard} ${selected ? styles.dayCardSelected : ''}`}
+                  onClick={() => setDate(d.iso)}
+                >
+                  <span className={styles.dayDow}>{d.isToday ? 'Today' : d.dow}</span>
+                  <span className={styles.dayNum}>{d.day}</span>
+                  <span className={styles.dayMon}>{d.mon}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -317,25 +388,56 @@ export default function BookingPage() {
             }
           </div>
 
-          <div className={styles.timeline}>
-            {TIME_SLOTS.map(t => {
-              const booked = isSegmentBooked(t)
-              const status = booked ? 'booked' : getTimeStatus(t, slots)
-              const inRange = isInRange(t)
-              const isStart = t === selectedStart
-              const isEndSlot = selectedEnd ? hourOf(t) === hourOf(selectedEnd) - 1 : false
-              return (
+          <div className={styles.slider}>
+            <div
+              ref={trackRef}
+              className={styles.sliderTrack}
+              onClick={handleTrackClick}
+            >
+              {bookedHours.map(h => (
+                <div
+                  key={h}
+                  className={styles.sliderBooked}
+                  style={{ left: `${pctFor(h)}%`, width: `${100 / SLOTS_TOTAL}%` }}
+                  title={`${formatTime(toTime(h))} — booked`}
+                />
+              ))}
+              {startH != null && endH != null && (
+                <div
+                  className={styles.sliderRange}
+                  style={{ left: `${pctFor(startH)}%`, width: `${pctFor(endH) - pctFor(startH)}%` }}
+                />
+              )}
+              {startH != null && (
                 <button
-                  key={t}
-                  className={`${styles.timeSegment} ${styles[`seg_${status}`]} ${inRange ? styles.segInRange : ''} ${isStart ? styles.segStart : ''} ${isEndSlot ? styles.segEnd : ''}`}
-                  onClick={() => handleTimeClick(t)}
-                  disabled={booked}
-                  title={formatTime(t)}
+                  type="button"
+                  className={styles.sliderThumb}
+                  style={{ left: `${pctFor(startH)}%` }}
+                  onPointerDown={startDrag('start')}
+                  aria-label={`Start time ${formatTimeShort(toTime(startH))}`}
+                />
+              )}
+              {endH != null && (
+                <button
+                  type="button"
+                  className={styles.sliderThumb}
+                  style={{ left: `${pctFor(endH)}%` }}
+                  onPointerDown={startDrag('end')}
+                  aria-label={`End time ${formatTimeShort(toTime(endH))}`}
+                />
+              )}
+            </div>
+            <div className={styles.sliderTicks}>
+              {[6, 12, 18, 22].map(h => (
+                <span
+                  key={h}
+                  className={styles.sliderTick}
+                  style={{ left: `${pctFor(h)}%` }}
                 >
-                  <span className={styles.segLabel}>{formatTimeShort(t)}</span>
-                </button>
-              )
-            })}
+                  {formatTimeShort(toTime(h))}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
 

@@ -23,7 +23,8 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.waitForLoadState('networkidle');
 
     await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
-    await page.locator('button[title]').filter({ hasText: /AM|PM/ }).first().click();
+    // Click slider track at ~25% (≈9 AM) to set a 1-hour selection
+    await page.locator('[class*="sliderTrack"]').click({ position: { x: 70, y: 22 } });
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
