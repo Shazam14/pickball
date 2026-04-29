@@ -21,7 +21,18 @@ interface Booking {
   created_at: string
 }
 
-type Tab = 'pending' | 'confirmed' | 'all'
+type Tab = 'pending' | 'confirmed' | 'all' | 'feedback'
+
+interface FeedbackComment {
+  id: string
+  route: string
+  message: string
+  author: string
+  status: 'open' | 'resolved'
+  viewport_w: number
+  viewport_h: number
+  created_at: string
+}
 
 function formatTime(t: string) {
   const hr = parseInt(t.split(':')[0])
@@ -40,6 +51,29 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false)
   const [tab, setTab] = useState<Tab>('pending')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState<FeedbackComment[]>([])
+  const [feedbackLoading, setFeedbackLoading] = useState(false)
+
+  const fetchFeedback = useCallback(async () => {
+    setFeedbackLoading(true)
+    try {
+      const res = await fetch('/api/feedback')
+      if (!res.ok) return
+      const data = await res.json()
+      setFeedback(data.comments || [])
+    } finally {
+      setFeedbackLoading(false)
+    }
+  }, [])
+
+  async function toggleFeedback(c: FeedbackComment) {
+    const next = c.status === 'open' ? 'resolved' : 'open'
+    const res = await fetch(`/api/feedback?id=${c.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: next }),
+    })
+    if (res.ok) fetchFeedback()
+  }
 
   const fetchBookings = useCallback(async (k: string) => {
     setLoading(true)
@@ -56,9 +90,10 @@ export default function AdminPage() {
   useEffect(() => {
     if (!authed) return
     fetchBookings(key)
+    fetchFeedback()
     const interval = setInterval(() => fetchBookings(key), 30000)
     return () => clearInterval(interval)
-  }, [authed, key, fetchBookings])
+  }, [authed, key, fetchBookings, fetchFeedback])
 
   async function handleLogin() {
     setAuthError('')
@@ -119,15 +154,47 @@ export default function AdminPage() {
       </div>
 
       <div className={styles.tabs}>
-        {(['pending', 'confirmed', 'all'] as Tab[]).map(t => (
+        {(['pending', 'confirmed', 'all', 'feedback'] as Tab[]).map(t => (
           <button key={t} className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
             {t === 'pending' && pending.length > 0 && <span className={styles.badge}>{pending.length}</span>}
+            {t === 'feedback' && feedback.filter(f => f.status === 'open').length > 0 && (
+              <span className={styles.badge}>{feedback.filter(f => f.status === 'open').length}</span>
+            )}
           </button>
         ))}
       </div>
 
-      {loading ? (
+      {tab === 'feedback' ? (
+        feedbackLoading ? (
+          <div className={styles.empty}>Loading…</div>
+        ) : feedback.length === 0 ? (
+          <div className={styles.empty}>No tester feedback yet.</div>
+        ) : (
+          <div className={styles.list}>
+            {feedback.map(f => (
+              <div key={f.id} className={`${styles.card} ${styles[`card_${f.status === 'open' ? 'locked' : 'confirmed'}`]}`}>
+                <div className={styles.cardTop}>
+                  <div className={styles.ref}>{f.author}</div>
+                  <span className={`${styles.statusBadge} ${styles[`status_${f.status === 'open' ? 'locked' : 'confirmed'}`]}`}>{f.status.toUpperCase()}</span>
+                </div>
+                <div style={{ padding: '12px 16px', whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.55 }}>{f.message}</div>
+                <div className={styles.cardGrid}>
+                  <div className={styles.field}><div className={styles.fieldLabel}>Page</div><div className={styles.fieldVal}>{f.route}</div></div>
+                  <div className={styles.field}><div className={styles.fieldLabel}>Viewport</div><div className={styles.fieldVal}>{f.viewport_w} × {f.viewport_h}</div></div>
+                  <div className={styles.field}><div className={styles.fieldLabel}>When</div><div className={styles.fieldVal}>{new Date(f.created_at).toLocaleString()}</div></div>
+                </div>
+                <div className={styles.actions}>
+                  <a className={styles.approveBtn} href={`${f.route}?focus_pin=${f.id}`} target="_blank" rel="noreferrer" style={{ textDecoration: 'none', display: 'inline-block', textAlign: 'center' }}>↗ Jump to pin</a>
+                  <button className={styles.rejectBtn} onClick={() => toggleFeedback(f)}>
+                    {f.status === 'open' ? '✓ Resolve' : '↺ Reopen'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : loading ? (
         <div className={styles.empty}>Loading…</div>
       ) : filtered.length === 0 ? (
         <div className={styles.empty}>{tab === 'pending' ? 'No pending bookings — all clear.' : 'No bookings found.'}</div>

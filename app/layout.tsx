@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Barlow, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
+import FeedbackWidget from '@/components/FeedbackWidget'
 
 const barlow = Barlow({
   subsets: ['latin'],
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${barlow.variable} ${barlowCondensed.variable}`}>
       <body style={{ fontFamily: 'var(--font-barlow), sans-serif' }}>
         {children}
+        <FeedbackWidget />
       </body>
     </html>
   )
