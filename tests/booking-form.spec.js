@@ -12,158 +12,195 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
-test.describe('Booking — Step 03 details + entrance fee', () => {
-  test('form renders, stepper updates total, button gates on required fields', async ({ page }) => {
+test.describe('Booking — two-phase matrix', () => {
+  test('phase 1: tap a cell → details/confirm panel hidden, Continue button enabled', async ({ page }) => {
     await page.goto(`${BASE}/booking`);
-
-    // Wait for availability fetch + matrix
     await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
 
-    // Tap a matrix cell — auto-selects Court 1 + 7AM.
+    // Continue is disabled until a cell is tapped.
+    const continueBtn = page.getByRole('button', { name: /Continue → Choose Courts/ });
+    await expect(continueBtn).toBeVisible();
+    await expect(continueBtn).toBeDisabled();
+
+    // Phase 1 instruction is showing.
+    await expect(page.getByText(/01a — Tap a green cell/)).toBeVisible();
+
+    // Tap a cell — anchor set.
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
 
-    // Step 03 should now be visible
-    await expect(page.getByText('03 — Your Details')).toBeVisible();
-    await expect(page.getByText(/We'll email you a link to add your other players/)).toBeVisible();
+    // Continue now enabled.
+    await expect(continueBtn).toBeEnabled();
 
-    // Fields (labels lack htmlFor — use placeholders)
-    const nameInput = page.getByPlaceholder('Juan dela Cruz');
-    const phoneInput = page.getByPlaceholder('+63 9XX XXX XXXX');
-    const emailInput = page.getByPlaceholder('juan@email.com');
-    await expect(nameInput).toBeVisible();
-    await expect(phoneInput).toBeVisible();
-    await expect(emailInput).toBeVisible();
-
-    // Player stepper defaults to 4
-    await expect(page.locator('text=Players (₱50 entrance / head)')).toBeVisible();
-
-    // Confirm panel — default 1h × 4 players = 700 + 200 = 900
-    await expect(page.getByText(/Court ₱700/)).toBeVisible();
-    await expect(page.getByText(/\+ Entrance ₱200/)).toBeVisible();
-    await expect(page.locator('text=/₱900/').first()).toBeVisible();
-
-    // Button is disabled (no name/phone/email yet)
-    const confirmBtn = page.getByRole('button', { name: /Fill in your details/ });
-    await expect(confirmBtn).toBeVisible();
-    await expect(confirmBtn).toBeDisabled();
-
-    // Tap players + → 5 players → entrance ₱250 → total ₱950
-    await page.locator('[aria-label="Increase players"]').click();
-    await expect(page.getByText(/\+ Entrance ₱250/)).toBeVisible();
-    await expect(page.locator('text=/₱950/').first()).toBeVisible();
-
-    // Fill required fields → button enables
-    await nameInput.fill('Juan dela Cruz');
-    await phoneInput.fill('+63 9171234567');
-    await emailInput.fill('juan@example.com');
-
-    const liveBtn = page.getByRole('button', { name: /Confirm & Pay/ });
-    await expect(liveBtn).toBeEnabled();
+    // Details + confirm are NOT yet visible — still phase 1.
+    await expect(page.getByText('03 — Your Details')).not.toBeVisible();
+    await expect(page.getByRole('button', { name: /Confirm & Pay|Fill in your details/ })).toHaveCount(0);
   });
 
-  test('clicking a cell in a different court resets to that single cell (no fan-out)', async ({ page }) => {
+  test('phase 1: tapping a column header is a no-op (no fan-out)', async ({ page }) => {
     await page.goto(`${BASE}/booking`);
     await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
 
     // Pick (Court 1, 7AM).
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
-    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
-      .toHaveClass(/matrixCellSelected/);
 
-    // Now "accidentally" tap (Court 5, 10AM). This must NOT extend the range
-    // or add Court 5 to a multi-court selection — it should switch to that
-    // single cell. To add a court for tournaments, the user uses the header.
-    await page.locator('[aria-label="Court 5 at 10AM"]').click();
+    // Try to tap a column header — in phase 1 it has no aria-button role.
+    // The header element exists but isn't a button; locating it as a button must fail.
+    await expect(page.getByRole('button', { name: /Toggle Court 5/ })).toHaveCount(0);
 
-    // Only the new cell is selected.
-    await expect(page.locator('[aria-label="Court 5 at 10AM"]'))
-      .toHaveClass(/matrixCellSelected/);
-
-    // The previous cell is no longer selected.
-    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+    // Sanity: SO5@7AM is still NOT lit (no spread to a non-anchor court).
+    await expect(page.locator('[aria-label="Court 5 at 7AM"]'))
       .not.toHaveClass(/matrixCellSelected/);
-
-    // No extended range — Court 5 at 8AM/9AM should NOT be selected.
-    for (const hour of ['8AM', '9AM']) {
-      await expect(page.locator(`[aria-label="Court 5 at ${hour}"]`))
-        .not.toHaveClass(/matrixCellSelected/);
-    }
-
-    // Confirm panel reflects the single court only (not "Courts 1, 5").
-    await expect(page.getByText('Court 5', { exact: true })).toBeVisible();
-    await expect(page.locator('text=/Courts\\s*1/')).toHaveCount(0);
   });
 
-  test('two cell taps in same column do NOT extend the range — second tap moves the start', async ({ page }) => {
+  test('phase 1: tapping a different cell moves the anchor — no spread', async ({ page }) => {
     await page.goto(`${BASE}/booking`);
-    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
-
-    // First tap → (Court 1, 7AM) selected. Default duration 1h.
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
     await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
       .toHaveClass(/matrixCellSelected/);
 
-    // Second tap on same column at a far hour — should MOVE the start, not extend.
-    await page.locator('[aria-label="Court 1 at 2PM"]').click();
-
-    // Only the new cell is highlighted.
-    await expect(page.locator('[aria-label="Court 1 at 2PM"]'))
+    // Tap (Court 5, 10AM) — moves anchor.
+    await page.locator('[aria-label="Court 5 at 10AM"]').click();
+    await expect(page.locator('[aria-label="Court 5 at 10AM"]'))
       .toHaveClass(/matrixCellSelected/);
     await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
       .not.toHaveClass(/matrixCellSelected/);
 
-    // None of the cells in between are lit.
-    for (const hour of ['8AM', '9AM', '10AM', '11AM', '12PM', '1PM']) {
-      await expect(page.locator(`[aria-label="Court 1 at ${hour}"]`))
+    // Cells in between are dark.
+    for (const hour of ['8AM', '9AM']) {
+      await expect(page.locator(`[aria-label="Court 5 at ${hour}"]`))
         .not.toHaveClass(/matrixCellSelected/);
     }
   });
 
   test('duration stepper extends the highlighted range and updates court fee', async ({ page }) => {
     await page.goto(`${BASE}/booking`);
-    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
-
-    // Pick (Court 1, 7AM). Default duration 1h, court fee ₱700.
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
-    await expect(page.getByText(/Court ₱700/)).toBeVisible();
 
-    // Duration display shows "1h".
+    // Default 1h × 1 court × ₱700 — visible in the duration row summary.
+    await expect(page.locator('text=/₱700/').first()).toBeVisible();
     await expect(page.getByText('1h', { exact: true }).first()).toBeVisible();
 
-    // Bump duration to 3h via the stepper.
     const dPlus = page.locator('[aria-label="Increase duration"]');
     await dPlus.click(); // 2h
     await dPlus.click(); // 3h
 
-    // Court fee = 3h × 1 court × ₱700 = ₱2,100.
-    await expect(page.getByText(/Court ₱2,100/)).toBeVisible();
-
-    // Cells 7AM, 8AM, 9AM are now all highlighted in Court 1.
+    // Cells 7AM–9AM are highlighted in Court 1.
     for (const hour of ['7AM', '8AM', '9AM']) {
       await expect(page.locator(`[aria-label="Court 1 at ${hour}"]`))
         .toHaveClass(/matrixCellSelected/);
     }
-    // 10AM is NOT highlighted (range is 7–10, exclusive of end).
+    // 10AM (range end is exclusive) is NOT highlighted.
     await expect(page.locator('[aria-label="Court 1 at 10AM"]'))
+      .not.toHaveClass(/matrixCellSelected/);
+
+    // ₱2,100 visible in the duration row summary (3h × ₱700).
+    await expect(page.locator('text=/₱2,100/').first()).toBeVisible();
+  });
+
+  test('phase transition: Continue → form/confirm visible, headers become interactive', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+
+    // Click Continue → enter phase 2.
+    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+
+    // Phase 2 indicator + form visible.
+    await expect(page.getByText(/01b —/)).toBeVisible();
+    await expect(page.getByText('03 — Your Details')).toBeVisible();
+
+    // Headers are now interactive (Toggle Court 5 button now exists).
+    await expect(page.getByRole('button', { name: /Toggle Court 5/ })).toHaveCount(1);
+
+    // Confirm panel renders too.
+    await expect(page.getByText(/Court ₱700/)).toBeVisible();
+  });
+
+  test('phase 2: tap header adds a court; both columns lit at the same time', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+
+    // Add SO5 to the booking via header.
+    await page.getByRole('button', { name: /Toggle Court 5/ }).click();
+
+    // Both anchor (SO1) and SO5 cells at 7AM should be highlighted.
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+    await expect(page.locator('[aria-label="Court 5 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+
+    // Court fee = 1h × 2 courts × ₱700 = ₱1,400.
+    await expect(page.getByText(/Court ₱1,400/)).toBeVisible();
+  });
+
+  test('phase 2: cells become non-interactive (read-only)', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+
+    // Tapping a cell in phase 2 must not change the anchor.
+    await page.locator('[aria-label="Court 5 at 10AM"]').click({ force: true });
+
+    // SO1@7AM still the anchor; SO5@10AM did NOT become selected.
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+    await expect(page.locator('[aria-label="Court 5 at 10AM"]'))
       .not.toHaveClass(/matrixCellSelected/);
   });
 
-  test('clicking one cell does not tint the rest of the court column', async ({ page }) => {
+  test('phase 2: Back button returns to phase 1 and drops extra courts', async ({ page }) => {
     await page.goto(`${BASE}/booking`);
-    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
-
-    // Tap a single cell — should select ONLY (C1, 7AM).
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+    await page.getByRole('button', { name: /Toggle Court 5/ }).click();
 
-    // The clicked cell carries the bright "selected" styling.
-    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+    // Sanity: phase 2, both courts lit.
+    await expect(page.locator('[aria-label="Court 5 at 7AM"]'))
       .toHaveClass(/matrixCellSelected/);
 
-    // Other cells in the same column must NOT light up.
-    for (const hour of ['8AM', '9AM', '10AM', '11AM', '12PM', '1PM']) {
-      const cell = page.locator(`[aria-label="Court 1 at ${hour}"]`);
-      await expect(cell).not.toHaveClass(/matrixCellInCourt/);
-      await expect(cell).not.toHaveClass(/matrixCellSelected/);
-    }
+    // Back to phase 1.
+    await page.getByRole('button', { name: /Back to Time/ }).click();
+
+    // Anchor preserved.
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+    // Extra court dropped.
+    await expect(page.locator('[aria-label="Court 5 at 7AM"]'))
+      .not.toHaveClass(/matrixCellSelected/);
+
+    // Form is gone again.
+    await expect(page.getByText('03 — Your Details')).not.toBeVisible();
+  });
+
+  test('full booking flow: anchor → continue → details → button gating', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+
+    await expect(page.getByText('03 — Your Details')).toBeVisible();
+
+    const nameInput = page.getByPlaceholder('Juan dela Cruz');
+    const phoneInput = page.getByPlaceholder('+63 9XX XXX XXXX');
+    const emailInput = page.getByPlaceholder('juan@email.com');
+
+    // Default 1h × 1 court × ₱700 + 4 players × ₱50 = ₱900.
+    await expect(page.getByText(/Court ₱700/)).toBeVisible();
+    await expect(page.getByText(/\+ Entrance ₱200/)).toBeVisible();
+    await expect(page.locator('text=/₱900/').first()).toBeVisible();
+
+    // Pay button disabled until form filled.
+    await expect(page.getByRole('button', { name: /Fill in your details/ })).toBeDisabled();
+
+    // Bump players → +50, total ₱950.
+    await page.locator('[aria-label="Increase players"]').click();
+    await expect(page.getByText(/\+ Entrance ₱250/)).toBeVisible();
+
+    await nameInput.fill('Juan dela Cruz');
+    await phoneInput.fill('+63 9171234567');
+    await emailInput.fill('juan@example.com');
+
+    await expect(page.getByRole('button', { name: /Confirm & Pay/ })).toBeEnabled();
   });
 });

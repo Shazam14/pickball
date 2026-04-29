@@ -84,8 +84,8 @@ const TOUR_A_STEPS: TourStep[] = [
   {
     element: '[data-tour="matrix"]',
     popover: {
-      title: 'Pick your court & time',
-      description: 'Tap a green cell to pick a court & start time — one tap, one cell. Striped cells are already booked. For tournaments, tap a <b>SO1…SO10</b> column header to add another court.',
+      title: 'Pick your start time',
+      description: 'Tap a green cell to pick your court & start hour — one tap, one cell. Striped cells are already booked.',
       side: 'top', align: 'center',
     },
   },
@@ -94,6 +94,14 @@ const TOUR_A_STEPS: TourStep[] = [
     popover: {
       title: 'How long?',
       description: 'Use the <b>Duration</b> stepper to book multi-hour blocks. The matrix lights up the hours you\'ll get.',
+      side: 'top', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="continue"]',
+    popover: {
+      title: 'Lock time, then choose courts',
+      description: 'Tap <b>Continue</b> to move on. Single court? Just continue. Tournament? After continuing, the column headers (SO1–SO10) become tappable so you can add courts.',
       side: 'top', align: 'center',
     },
   },
@@ -146,6 +154,7 @@ export default function BookingPage() {
   const [customerEmail, setCustomerEmail] = useState('')
   const [players, setPlayers] = useState(4)
   const [duration, setDuration] = useState(1)
+  const [phase, setPhase] = useState<'time' | 'courts'>('time')
 
   const endTime = selectedStart ? toTime(hourOf(selectedStart) + duration) : null
   const courtFee = duration * COURT_PRICE_PER_HOUR * selectedCourts.length
@@ -164,6 +173,7 @@ export default function BookingPage() {
     setSelectedCourts([])
     setSelectedStart(null)
     setSelectedEnd(null)
+    setPhase('time')
     try {
       const res = await fetch(`/api/availability?date=${d}&duration=1`)
       const data = await res.json()
@@ -228,16 +238,39 @@ export default function BookingPage() {
     return out
   })()
 
+  // Phase 2 only — toggle add/remove a court (anchor court is permanent).
   const handleCourtSelect = (court: number) => {
-    setSelectedCourts(prev => prev.includes(court) ? prev.filter(c => c !== court) : [...prev, court].sort((a, b) => a - b))
+    if (phase !== 'courts') return
     setLockError('')
+
+    const anchorCourt = selectedCourts[0]
+    if (court === anchorCourt) return  // anchor cannot be removed
+
+    // Removing an extra court — always allowed.
+    if (selectedCourts.includes(court)) {
+      setSelectedCourts(prev => prev.filter(c => c !== court))
+      return
+    }
+
+    // Adding a court — must be free across the full hour range.
+    if (startH != null) {
+      for (let h = startH; h < startH + duration; h++) {
+        if (isSlotTaken(court, toTime(h))) {
+          setLockError(`SO${court} is booked at ${formatHour(h)}. Pick another court.`)
+          return
+        }
+      }
+    }
+    setSelectedCourts(prev => [...prev, court].sort((a, b) => a - b))
   }
 
   function handleCellClick(court: number, h: number) {
+    // Phase 2 — matrix is read-only. Use Back to change time.
+    if (phase !== 'time') return
     if (bookedHours.includes(h)) return
     setLockError('')
 
-    // Tap the current start cell on the only-selected court → deselect.
+    // Tap the current anchor cell again → deselect.
     if (selectedCourts.length === 1 && selectedCourts[0] === court && startH === h) {
       setSelectedStart(null)
       setSelectedEnd(null)
@@ -254,11 +287,25 @@ export default function BookingPage() {
       return
     }
 
-    if (!selectedCourts.includes(court)) {
-      setSelectedCourts([court])
-    }
+    // Phase 1: always single-court anchor.
+    setSelectedCourts([court])
     setSelectedStart(toTime(h))
     setSelectedEnd(toTime(newEnd))
+  }
+
+  function goToPhaseCourts() {
+    if (selectedCourts.length === 0 || !selectedStart) return
+    setLockError('')
+    setPhase('courts')
+  }
+
+  function backToPhaseTime() {
+    setLockError('')
+    // Drop any extra courts added in phase 2 — keep only the anchor.
+    if (selectedCourts.length > 1) {
+      setSelectedCourts([selectedCourts[0]])
+    }
+    setPhase('time')
   }
 
   function bumpDuration(delta: number) {
@@ -331,6 +378,7 @@ export default function BookingPage() {
     })
     setSelectedCourts([]); setSelectedStart(null); setSelectedEnd(null)
     setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4); setDuration(1)
+    setPhase('time')
     fetchAvailability(date)
   }
 
@@ -459,10 +507,21 @@ export default function BookingPage() {
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
           <div className={styles.matrixHint}>
-            {!selectedStart
-              ? 'Tap a green cell to pick a court & start time. Use the duration control below for longer bookings. For tournaments, tap a column header (SO1–SO10) to add a court.'
-              : <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(endTime!)}</span> · {duration}h · ₱{price.toLocaleString()} · tap a cell to move, or adjust duration below</>
-            }
+            {phase === 'time' && !selectedStart && (
+              <span>01a — Tap a green cell to pick your court &amp; start time.</span>
+            )}
+            {phase === 'time' && selectedStart && (
+              <>
+                <span className={styles.hintGreen}>01a — Court SO{selectedCourts[0]} · {formatTime(selectedStart)} — {formatTime(endTime!)}</span>
+                {' · '}{duration}h · ₱{courtFee.toLocaleString()} · adjust duration below or continue →
+              </>
+            )}
+            {phase === 'courts' && (
+              <>
+                <span className={styles.hintGreen}>01b — {selectedCourts.length > 1 ? `Courts ${selectedCourts.map(c => `SO${c}`).join(', ')}` : `Court SO${selectedCourts[0]}`} · {formatTime(selectedStart!)} — {formatTime(endTime!)}</span>
+                {' · '}tap a header (SO1–SO10) to add courts for tournaments. Tap ← Back to change time.
+              </>
+            )}
           </div>
           <CourtHourMatrix
             courts={Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)}
@@ -470,6 +529,7 @@ export default function BookingPage() {
             selectedCourts={selectedCourts}
             startH={startH}
             endH={endH}
+            phase={phase}
             isCellBooked={(c, h) => isSlotTaken(c, toTime(h))}
             onToggleCourt={handleCourtSelect}
             onCellClick={handleCellClick}
@@ -500,10 +560,45 @@ export default function BookingPage() {
               </span>
             )}
           </div>
+
+          {/* PHASE TRANSITION BUTTONS */}
+          {phase === 'time' && (
+            <div className={styles.phaseActions} data-tour="continue">
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ clipPath: 'none' }}
+                onClick={goToPhaseCourts}
+                disabled={selectedCourts.length === 0 || !selectedStart}
+              >
+                Continue → Choose Courts
+              </button>
+              {selectedStart && (
+                <span className={styles.phaseHint}>or tap any cell to change your start time</span>
+              )}
+            </div>
+          )}
+          {phase === 'courts' && (
+            <div className={styles.phaseActions}>
+              <button
+                type="button"
+                className="btn-outline"
+                style={{ clipPath: 'none' }}
+                onClick={backToPhaseTime}
+              >
+                ← Back to Time
+              </button>
+              <span className={styles.phaseHint}>
+                {selectedCourts.length === 1
+                  ? 'Single court booking. Tap a header (SO1–SO10) above to add courts for tournaments.'
+                  : `${selectedCourts.length} courts selected. Tap headers above to add or remove.`}
+              </span>
+            </div>
+          )}
         </div>
 
-        {/* STEP 3 — DETAILS */}
-        {selectedCourts.length > 0 && selectedStart && (
+        {/* STEP 3 — DETAILS (phase 2 only) */}
+        {phase === 'courts' && selectedCourts.length > 0 && selectedStart && (
           <div className={styles.detailsSection}>
             <div className={styles.sectionLabel}>03 — Your Details</div>
             <p className={styles.detailsNote}>
@@ -563,8 +658,8 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* CONFIRM */}
-        {selectedCourts.length > 0 && selectedStart && (
+        {/* CONFIRM (phase 2 only) */}
+        {phase === 'courts' && selectedCourts.length > 0 && selectedStart && (
           <div className={styles.confirmPanel} data-tour="confirm">
             <div className={styles.confirmDetails}>
               <div className={styles.confirmItem}><div className={styles.confirmVal}>{selectedCourts.length === 1 ? `Court ${selectedCourts[0]}` : `Courts ${selectedCourts.join(', ')}`}</div><div className={styles.confirmKey}>{selectedCourts.length === 1 ? 'Court' : `${selectedCourts.length} Courts`}</div></div>

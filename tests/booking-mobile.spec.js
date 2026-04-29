@@ -28,7 +28,7 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.screenshot({ path: 'test-results/m375-booking-01-initial.png', fullPage: true });
   });
 
-  test('booking — matrix cell click (PG.1) auto-selects court + hour', async ({ page }) => {
+  test('booking — matrix cell click (PG.1) → continue → fills form', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
@@ -38,27 +38,32 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.locator('button[class*="dayCard"]').first().click();
     await page.waitForTimeout(500);
 
-    // Tap a single cell — auto-selects Court 1 + 7AM.
+    // Phase 1: tap (Court 1, 7AM).
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await page.waitForTimeout(200);
+    await page.screenshot({ path: 'test-results/m375-booking-02-phase1.png', fullPage: true });
+
+    // Continue → phase 2.
+    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: 'test-results/m375-booking-02-step03.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/m375-booking-03-phase2.png', fullPage: true });
 
     await page.getByPlaceholder('Juan dela Cruz').fill('Juan dela Cruz');
     await page.getByPlaceholder('+63 9XX XXX XXXX').fill('+63 9171234567');
     await page.getByPlaceholder('juan@email.com').fill('juan@example.com');
-    await page.locator('button:has-text("+")').first().click();
+    await page.locator('[aria-label="Increase players"]').click();
 
-    await page.screenshot({ path: 'test-results/m375-booking-03-filled.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/m375-booking-04-filled.png', fullPage: true });
 
     const confirmPanel = page.locator('[class*="confirmPanel"]');
     if (await confirmPanel.count() > 0) {
-      await confirmPanel.screenshot({ path: 'test-results/m375-booking-04-confirm.png' });
+      await confirmPanel.screenshot({ path: 'test-results/m375-booking-05-confirm.png' });
     }
   });
 
-  test('booking — multi-court (PB.3) + multi-hour range via matrix (PG.1)', async ({ page }) => {
+  test('booking — multi-court via phase 2 + multi-hour duration', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
@@ -68,21 +73,26 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.locator('button[class*="dayCard"]').first().click();
     await page.waitForTimeout(500);
 
-    // Tap (Court 1, 7AM) — selects court 1 + 7AM (1h default).
+    // Phase 1: anchor at (Court 1, 7AM).
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
-    // Tap C2 column header — adds court 2 to selection (no time change).
+    // Bump duration to 3h via stepper — anchor column lights up 7AM–10AM.
+    await page.locator('[aria-label="Increase duration"]').click();
+    await page.locator('[aria-label="Increase duration"]').click();
+
+    // Continue to phase 2.
+    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+    await page.waitForTimeout(200);
+
+    // Add SO2 via header — both courts now span 7AM–10AM.
     await page.locator('[aria-label="Toggle Court 2"]').click();
-    // Bump duration to 3h via stepper — both courts now span 7AM–10AM.
-    await page.locator('[aria-label="Increase duration"]').click();
-    await page.locator('[aria-label="Increase duration"]').click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: 'test-results/m375-booking-05-multicourt.png', fullPage: true });
+    await page.screenshot({ path: 'test-results/m375-booking-06-multicourt.png', fullPage: true });
 
     const confirmPanel = page.locator('[class*="confirmPanel"]');
     if (await confirmPanel.count() > 0) {
-      await confirmPanel.screenshot({ path: 'test-results/m375-booking-06-multicourt-confirm.png' });
+      await confirmPanel.screenshot({ path: 'test-results/m375-booking-07-multicourt-confirm.png' });
     }
   });
 });
