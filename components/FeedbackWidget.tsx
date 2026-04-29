@@ -163,10 +163,14 @@ export default function FeedbackWidget() {
     <div data-feedback-widget>
       {/* Pins */}
       {comments.map(c => {
-        const left = (c.x_pct / 100) * (typeof window !== 'undefined' ? window.innerWidth : 1200)
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
+        const left = (c.x_pct / 100) * vw
         const top = (c.y_pct / 100) * docHeight
         const isOpen = openCommentId === c.id
         const number = comments.findIndex(x => x.id === c.id) + 1
+        // Flip popup left when pin is on the right half of the viewport
+        // so the 240–300px popup stays on-screen on phones.
+        const flip = left > vw / 2
         return (
           <div key={c.id} style={{ position: 'absolute', top: top - 14, left: left - 14, zIndex: 8000, pointerEvents: 'auto' }}>
             <button
@@ -185,7 +189,9 @@ export default function FeedbackWidget() {
             </button>
             {isOpen && (
               <div onClick={e => e.stopPropagation()} style={{
-                position: 'absolute', top: 36, left: 0, minWidth: 240, maxWidth: 300,
+                position: 'absolute', top: 36,
+                ...(flip ? { right: 0 } : { left: 0 }),
+                minWidth: 240, maxWidth: 300,
                 background: '#0F1411', color: '#fff', border: '1px solid rgba(31,214,89,0.4)',
                 padding: '12px 14px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', zIndex: 8001,
                 fontFamily: 'Archivo, sans-serif', fontSize: 13, lineHeight: 1.5,
@@ -222,11 +228,18 @@ export default function FeedbackWidget() {
       })}
 
       {/* Composer balloon — only when enrolled */}
-      {enabled && composer && (
+      {enabled && composer && (() => {
+        const COMPOSER_W = 280
+        const COMPOSER_H = 220 // approx — textarea + buttons
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+        const left = Math.max(8, Math.min(composer.x, vw - COMPOSER_W - 8))
+        const top = Math.max(8, Math.min(composer.y, vh - COMPOSER_H - 8))
+        return (
         <div style={{
-          position: 'fixed', top: composer.y, left: composer.x, zIndex: 9002,
+          position: 'fixed', top, left, zIndex: 9002,
           background: '#0F1411', color: '#fff', border: '1.5px solid #1FD659',
-          padding: 12, width: 280, boxShadow: '0 12px 32px rgba(0,0,0,0.55)',
+          padding: 12, width: COMPOSER_W, boxShadow: '0 12px 32px rgba(0,0,0,0.55)',
         }}>
           <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.18em', color: '#1FD659', fontWeight: 700, marginBottom: 8 }}>
             ◆ NEW COMMENT — {author.toUpperCase()}
@@ -257,7 +270,8 @@ export default function FeedbackWidget() {
             }}>ESC</button>
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Dropping banner — only when enrolled */}
       {enabled && mode === 'dropping' && (
