@@ -28,14 +28,6 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.screenshot({ path: 'test-results/m375-booking-01-initial.png', fullPage: true });
   });
 
-  test('booking — walking-in mode (PC.2)', async ({ page }) => {
-    await page.goto('http://localhost:3000/booking');
-    await page.waitForLoadState('networkidle');
-    await page.getByRole('button', { name: /Walking In/ }).click();
-    await page.waitForTimeout(200);
-    await page.screenshot({ path: 'test-results/m375-booking-walkin.png', fullPage: true });
-  });
-
   test('booking — matrix cell click (PG.1) auto-selects court + hour', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
@@ -76,12 +68,13 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.locator('button[class*="dayCard"]').first().click();
     await page.waitForTimeout(500);
 
-    // Tap (Court 1, 7AM) — selects court 1 + 7AM.
+    // Tap (Court 1, 7AM) — selects court 1 + 7AM (1h default).
     await page.locator('[aria-label="Court 1 at 7AM"]').click();
-    // Tap C2 column header — adds court 2 to selection (no hour change).
+    // Tap C2 column header — adds court 2 to selection (no time change).
     await page.locator('[aria-label="Toggle Court 2"]').click();
-    // Tap (Court 1, 8AM) — extends to 7AM–9AM range across both courts.
-    await page.locator('[aria-label="Court 1 at 8AM"]').click();
+    // Bump duration to 3h via stepper — both courts now span 7AM–10AM.
+    await page.locator('[aria-label="Increase duration"]').click();
+    await page.locator('[aria-label="Increase duration"]').click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();

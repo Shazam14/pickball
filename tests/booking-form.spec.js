@@ -47,8 +47,8 @@ test.describe('Booking — Step 03 details + entrance fee', () => {
     await expect(confirmBtn).toBeVisible();
     await expect(confirmBtn).toBeDisabled();
 
-    // Tap stepper + → 5 players → entrance ₱250 → total ₱950
-    await page.locator('button:has-text("+")').first().click();
+    // Tap players + → 5 players → entrance ₱250 → total ₱950
+    await page.locator('[aria-label="Increase players"]').click();
     await expect(page.getByText(/\+ Entrance ₱250/)).toBeVisible();
     await expect(page.locator('text=/₱950/').first()).toBeVisible();
 
@@ -59,6 +59,93 @@ test.describe('Booking — Step 03 details + entrance fee', () => {
 
     const liveBtn = page.getByRole('button', { name: /Confirm & Pay/ });
     await expect(liveBtn).toBeEnabled();
+  });
+
+  test('clicking a cell in a different court resets to that single cell (no fan-out)', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
+
+    // Pick (Court 1, 7AM).
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+
+    // Now "accidentally" tap (Court 5, 10AM). This must NOT extend the range
+    // or add Court 5 to a multi-court selection — it should switch to that
+    // single cell. To add a court for tournaments, the user uses the header.
+    await page.locator('[aria-label="Court 5 at 10AM"]').click();
+
+    // Only the new cell is selected.
+    await expect(page.locator('[aria-label="Court 5 at 10AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+
+    // The previous cell is no longer selected.
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .not.toHaveClass(/matrixCellSelected/);
+
+    // No extended range — Court 5 at 8AM/9AM should NOT be selected.
+    for (const hour of ['8AM', '9AM']) {
+      await expect(page.locator(`[aria-label="Court 5 at ${hour}"]`))
+        .not.toHaveClass(/matrixCellSelected/);
+    }
+
+    // Confirm panel reflects the single court only (not "Courts 1, 5").
+    await expect(page.getByText('Court 5', { exact: true })).toBeVisible();
+    await expect(page.locator('text=/Courts\\s*1/')).toHaveCount(0);
+  });
+
+  test('two cell taps in same column do NOT extend the range — second tap moves the start', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
+
+    // First tap → (Court 1, 7AM) selected. Default duration 1h.
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+
+    // Second tap on same column at a far hour — should MOVE the start, not extend.
+    await page.locator('[aria-label="Court 1 at 2PM"]').click();
+
+    // Only the new cell is highlighted.
+    await expect(page.locator('[aria-label="Court 1 at 2PM"]'))
+      .toHaveClass(/matrixCellSelected/);
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .not.toHaveClass(/matrixCellSelected/);
+
+    // None of the cells in between are lit.
+    for (const hour of ['8AM', '9AM', '10AM', '11AM', '12PM', '1PM']) {
+      await expect(page.locator(`[aria-label="Court 1 at ${hour}"]`))
+        .not.toHaveClass(/matrixCellSelected/);
+    }
+  });
+
+  test('duration stepper extends the highlighted range and updates court fee', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
+
+    // Pick (Court 1, 7AM). Default duration 1h, court fee ₱700.
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    await expect(page.getByText(/Court ₱700/)).toBeVisible();
+
+    // Duration display shows "1h".
+    await expect(page.getByText('1h', { exact: true }).first()).toBeVisible();
+
+    // Bump duration to 3h via the stepper.
+    const dPlus = page.locator('[aria-label="Increase duration"]');
+    await dPlus.click(); // 2h
+    await dPlus.click(); // 3h
+
+    // Court fee = 3h × 1 court × ₱700 = ₱2,100.
+    await expect(page.getByText(/Court ₱2,100/)).toBeVisible();
+
+    // Cells 7AM, 8AM, 9AM are now all highlighted in Court 1.
+    for (const hour of ['7AM', '8AM', '9AM']) {
+      await expect(page.locator(`[aria-label="Court 1 at ${hour}"]`))
+        .toHaveClass(/matrixCellSelected/);
+    }
+    // 10AM is NOT highlighted (range is 7–10, exclusive of end).
+    await expect(page.locator('[aria-label="Court 1 at 10AM"]'))
+      .not.toHaveClass(/matrixCellSelected/);
   });
 
   test('clicking one cell does not tint the rest of the court column', async ({ page }) => {

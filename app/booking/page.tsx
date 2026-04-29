@@ -11,7 +11,6 @@ import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/l
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
-type Mode = 'reserve' | 'walkin'
 type SlotMatrix = Record<string, { court: number; available: boolean }[]>
 type TimeStatus = 'available' | 'limited' | 'booked'
 
@@ -75,14 +74,6 @@ const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN  // 16
 
 const TOUR_A_STEPS: TourStep[] = [
   {
-    element: '[data-tour="mode"]',
-    popover: {
-      title: 'Reserve or Walk-In',
-      description: 'Pick <b>Reserve</b> to book online and lock your slot, or <b>Walking In</b> to skip the funnel and pay at the venue.',
-      side: 'bottom', align: 'center',
-    },
-  },
-  {
     element: '[data-tour="date"]',
     popover: {
       title: 'Pick a date',
@@ -94,7 +85,15 @@ const TOUR_A_STEPS: TourStep[] = [
     element: '[data-tour="matrix"]',
     popover: {
       title: 'Pick your court & time',
-      description: 'Tap any green cell to start. Tap another cell to extend the hour range, or tap a <b>SO1…SO10</b> column header to add another court (tournaments). Striped cells are booked.',
+      description: 'Tap a green cell to pick a court & start time — one tap, one cell. Striped cells are already booked. For tournaments, tap a <b>SO1…SO10</b> column header to add another court.',
+      side: 'top', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="duration"]',
+    popover: {
+      title: 'How long?',
+      description: 'Use the <b>Duration</b> stepper to book multi-hour blocks. The matrix lights up the hours you\'ll get.',
       side: 'top', align: 'center',
     },
   },
@@ -124,7 +123,6 @@ interface SuccessData {
 }
 
 export default function BookingPage() {
-  const [mode, setMode] = useState<Mode>('reserve')
   const [date, setDate] = useState(today())
   const [viewMonth, setViewMonth] = useState(() => {
     const d = new Date()
@@ -147,12 +145,9 @@ export default function BookingPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
   const [players, setPlayers] = useState(4)
+  const [duration, setDuration] = useState(1)
 
-  const duration = selectedStart && selectedEnd
-    ? hourOf(selectedEnd) - hourOf(selectedStart)
-    : selectedStart ? 1 : 0
-
-  const endTime = selectedEnd ?? (selectedStart ? toTime(hourOf(selectedStart) + 1) : null)
+  const endTime = selectedStart ? toTime(hourOf(selectedStart) + duration) : null
   const courtFee = duration * COURT_PRICE_PER_HOUR * selectedCourts.length
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const price = courtFee + entranceFee
@@ -217,9 +212,9 @@ export default function BookingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCourts, slots])
 
-  // ---- TIME (HOUR BOXES) ----
+  // ---- TIME (matrix range = startH .. startH + duration) ----
   const startH = selectedStart ? hourOf(selectedStart) : null
-  const endH = selectedEnd ? hourOf(selectedEnd) : (startH != null ? startH + 1 : null)
+  const endH = startH != null ? startH + duration : null
 
   const bookedHours = (() => {
     const out: number[] = []
@@ -233,52 +228,55 @@ export default function BookingPage() {
     return out
   })()
 
-  function handleHourClick(h: number) {
-    if (bookedHours.includes(h)) return
-    setLockError('')
-
-    // No selection yet → start a 1-hour pick.
-    if (startH == null || endH == null) {
-      setSelectedStart(toTime(h))
-      setSelectedEnd(toTime(h + 1))
-      return
-    }
-
-    // Tap the only selected hour → deselect.
-    if (startH === h && endH === h + 1) {
-      setSelectedStart(null)
-      setSelectedEnd(null)
-      return
-    }
-
-    // Tap inside an existing multi-hour range → collapse to that single hour.
-    if (h >= startH && h < endH) {
-      setSelectedStart(toTime(h))
-      setSelectedEnd(toTime(h + 1))
-      return
-    }
-
-    // Tap outside → extend range to cover both. Reject if the bridge crosses a booked hour.
-    const newStart = Math.min(startH, h)
-    const newEnd = Math.max(endH, h + 1)
-    if (!isRangeClear(newStart, newEnd)) {
-      setLockError('That range crosses a booked slot. Pick a contiguous open range.')
-      return
-    }
-    setSelectedStart(toTime(newStart))
-    setSelectedEnd(toTime(newEnd))
-  }
-
   const handleCourtSelect = (court: number) => {
     setSelectedCourts(prev => prev.includes(court) ? prev.filter(c => c !== court) : [...prev, court].sort((a, b) => a - b))
     setLockError('')
   }
 
   function handleCellClick(court: number, h: number) {
-    if (!selectedCourts.includes(court)) {
-      setSelectedCourts(prev => [...prev, court].sort((a, b) => a - b))
+    if (bookedHours.includes(h)) return
+    setLockError('')
+
+    // Tap the current start cell on the only-selected court → deselect.
+    if (selectedCourts.length === 1 && selectedCourts[0] === court && startH === h) {
+      setSelectedStart(null)
+      setSelectedEnd(null)
+      return
     }
-    handleHourClick(h)
+
+    const newEnd = h + duration
+    if (newEnd > HOUR_MAX) {
+      setLockError(`That start would run past ${formatHour(HOUR_MAX)}. Reduce duration or pick an earlier start.`)
+      return
+    }
+    if (!isRangeClear(h, newEnd)) {
+      setLockError(`That ${duration}h block overlaps a booked slot. Pick a different start.`)
+      return
+    }
+
+    if (!selectedCourts.includes(court)) {
+      setSelectedCourts([court])
+    }
+    setSelectedStart(toTime(h))
+    setSelectedEnd(toTime(newEnd))
+  }
+
+  function bumpDuration(delta: number) {
+    setLockError('')
+    const newD = Math.max(1, Math.min(8, duration + delta))
+    if (newD === duration) return
+    if (startH != null) {
+      if (startH + newD > HOUR_MAX) {
+        setLockError(`Can't extend past ${formatHour(HOUR_MAX)} from this start time.`)
+        return
+      }
+      if (!isRangeClear(startH, startH + newD)) {
+        setLockError(`Can't extend to ${newD}h — that range overlaps a booked slot.`)
+        return
+      }
+      setSelectedEnd(toTime(startH + newD))
+    }
+    setDuration(newD)
   }
 
   async function handleLockAndPay() {
@@ -332,7 +330,7 @@ export default function BookingPage() {
       customerEmail: customerEmail.trim() || undefined,
     })
     setSelectedCourts([]); setSelectedStart(null); setSelectedEnd(null)
-    setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4)
+    setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4); setDuration(1)
     fetchAvailability(date)
   }
 
@@ -388,46 +386,6 @@ export default function BookingPage() {
           <div className={styles.pageLabel}>— Play Pickleball</div>
           <div className={styles.pageTitle}>Book a Court</div>
         </div>
-
-        {/* MODE CHOOSER */}
-        <div className={styles.modeChooser} data-tour="mode">
-          <button
-            type="button"
-            className={`${styles.modeBtn} ${mode === 'reserve' ? styles.modeBtnSelected : ''}`}
-            onClick={() => setMode('reserve')}
-          >
-            <div className={styles.modeBtnTitle}>Reserve a Court</div>
-            <div className={styles.modeBtnSub}>Pick your court &amp; time. Pay online to lock your slot.</div>
-          </button>
-          <button
-            type="button"
-            className={`${styles.modeBtn} ${mode === 'walkin' ? styles.modeBtnSelected : ''}`}
-            onClick={() => setMode('walkin')}
-          >
-            <div className={styles.modeBtnTitle}>Walking In</div>
-            <div className={styles.modeBtnSub}>No reservation needed. Just visit and pay at the venue.</div>
-          </button>
-        </div>
-
-        {/* WALK-IN CARD */}
-        {mode === 'walkin' && (
-          <div className={styles.walkinCard}>
-            <div className={styles.walkinTitle}>Just Walk In</div>
-            <div className={styles.walkinSub}>No online payment. Show up, play, settle at the venue.</div>
-            <div className={styles.walkinInfo}>
-              <div className={styles.walkinRow}><span>Hours</span><span>Open 24 / 7</span></div>
-              <div className={styles.walkinRow}><span>Location</span><span>Mandaue, Cebu</span></div>
-              <div className={styles.walkinRow}><span>Court Fee</span><span>₱{COURT_PRICE_PER_HOUR.toLocaleString()} / hr</span></div>
-              <div className={styles.walkinRow}><span>Entrance</span><span>₱{ENTRANCE_FEE_PER_PERSON} per player</span></div>
-              <div className={styles.walkinRow}><span>Payment</span><span>Pay at the venue</span></div>
-            </div>
-            <div className={styles.walkinNote}>
-              Walk-ins are subject to court availability. To guarantee your slot — especially during peak hours — switch to <strong>Reserve a Court</strong> above.
-            </div>
-          </div>
-        )}
-
-        {mode === 'reserve' && (<>
 
         {/* DATE */}
         <div className={styles.datePicker} data-tour="date">
@@ -502,10 +460,8 @@ export default function BookingPage() {
           </div>
           <div className={styles.matrixHint}>
             {!selectedStart
-              ? 'Tap a green cell to pick a court & start time. Tap another cell to extend the range, or a column header (SO1–SO10) to add courts for tournaments.'
-              : !selectedEnd || endH === (startH ?? 0) + 1
-                ? <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(endTime!)}</span> · 1h · tap another cell to extend, tap again to deselect</>
-                : <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(selectedEnd!)}</span> · {duration}h · ₱{price.toLocaleString()} · tap any cell to change</>
+              ? 'Tap a green cell to pick a court & start time. Use the duration control below for longer bookings. For tournaments, tap a column header (SO1–SO10) to add a court.'
+              : <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(endTime!)}</span> · {duration}h · ₱{price.toLocaleString()} · tap a cell to move, or adjust duration below</>
             }
           </div>
           <CourtHourMatrix
@@ -519,6 +475,31 @@ export default function BookingPage() {
             onCellClick={handleCellClick}
             formatHour={formatHour}
           />
+          <div className={styles.durationRow} data-tour="duration">
+            <span className={styles.durationLabel}>Duration</span>
+            <div className={styles.stepper}>
+              <button
+                type="button"
+                className={styles.stepperBtn}
+                onClick={() => bumpDuration(-1)}
+                disabled={duration <= 1}
+                aria-label="Decrease duration"
+              >–</button>
+              <span className={styles.stepperValue}>{duration}h</span>
+              <button
+                type="button"
+                className={styles.stepperBtn}
+                onClick={() => bumpDuration(1)}
+                disabled={duration >= 8}
+                aria-label="Increase duration"
+              >+</button>
+            </div>
+            {selectedStart && (
+              <span className={styles.durationSummary}>
+                {formatTime(selectedStart)} — {formatTime(endTime!)} · ₱{courtFee.toLocaleString()}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* STEP 3 — DETAILS */}
@@ -566,6 +547,7 @@ export default function BookingPage() {
                     className={styles.stepperBtn}
                     onClick={() => setPlayers(p => Math.max(1, p - 1))}
                     disabled={players <= 1}
+                    aria-label="Decrease players"
                   >–</button>
                   <span className={styles.stepperValue}>{players}</span>
                   <button
@@ -573,6 +555,7 @@ export default function BookingPage() {
                     className={styles.stepperBtn}
                     onClick={() => setPlayers(p => Math.min(20, p + 1))}
                     disabled={players >= 20}
+                    aria-label="Increase players"
                   >+</button>
                 </div>
               </div>
@@ -603,8 +586,6 @@ export default function BookingPage() {
             </div>
           </div>
         )}
-
-        </>)}
       </div>
 
       {showModal && lockData && selectedStart && endTime && (
