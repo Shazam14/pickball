@@ -6,6 +6,7 @@ import Nav from '@/components/Nav'
 import BookingModal from '@/components/BookingModal'
 import TourButton, { type TourStep } from '@/components/TourButton'
 import { LobbyPlanButton } from '@/components/LobbyPlan'
+import CourtHourMatrix from './CourtHourMatrix'
 import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
@@ -90,18 +91,10 @@ const TOUR_A_STEPS: TourStep[] = [
     },
   },
   {
-    element: '[data-tour="courts"]',
+    element: '[data-tour="matrix"]',
     popover: {
-      title: 'Pick one or more courts',
-      description: 'Tap a court to add it. Tap multiple to book a tournament block — they all share one reference.',
-      side: 'top', align: 'center',
-    },
-  },
-  {
-    element: '[data-tour="hours"]',
-    popover: {
-      title: 'Pick your hour(s)',
-      description: 'Tap one box for a 1-hour pick. Tap a second box to extend the range. Striped boxes are already booked.',
+      title: 'Pick your court & time',
+      description: 'Tap any green cell to start. Tap another cell to extend the hour range, or tap a <b>C1…C10</b> column header to add another court (tournaments). Striped cells are booked.',
       side: 'top', align: 'center',
     },
   },
@@ -281,20 +274,12 @@ export default function BookingPage() {
     setLockError('')
   }
 
-  // A court is available for the current selection if free across the entire
-  // chosen range (or just at the start hour if no end yet).
-  const availableCourtsForTime = (() => {
-    const all = Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)
-    if (!selectedStart) return all
-    const startH = hourOf(selectedStart)
-    const endH = selectedEnd ? hourOf(selectedEnd) : startH + 1
-    return all.filter(c => {
-      for (let h = startH; h < endH; h++) {
-        if (isSlotTaken(c, toTime(h))) return false
-      }
-      return true
-    })
-  })()
+  function handleCellClick(court: number, h: number) {
+    if (!selectedCourts.includes(court)) {
+      setSelectedCourts(prev => [...prev, court].sort((a, b) => a - b))
+    }
+    handleHourClick(h)
+  }
 
   async function handleLockAndPay() {
     if (selectedCourts.length === 0 || !selectedStart || !endTime || !formValid) return
@@ -509,61 +494,31 @@ export default function BookingPage() {
           <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotRed}`} />Fully Booked</div>
         </div>
 
-        {/* STEP 1 */}
-        <div className={styles.courtSection}>
+        {/* STEP 1 — COURT × HOUR MATRIX */}
+        <div className={styles.matrixSection}>
           <div className={styles.sectionHead}>
-            <div className={styles.sectionLabel}>01 — Select Court(s)</div>
+            <div className={styles.sectionLabel}>01 — Pick Court & Time</div>
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
-          <div className={styles.courtHint}>Tap multiple courts to book them together (tournaments).</div>
-          <div className={styles.courtGrid} data-tour="courts">
-            {Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1).map(c => {
-              const available = availableCourtsForTime.includes(c)
-              const selected = selectedCourts.includes(c)
-              return (
-                <div key={c} className={`${styles.courtCard} ${!available ? styles.courtTaken : ''} ${selected ? styles.courtSelected : ''}`} onClick={() => available && handleCourtSelect(c)}>
-                  {selected && <div className={styles.courtCheck}>✓</div>}
-                  <div className={styles.courtNum}>{c}</div>
-                  <div className={styles.courtLabel}>Court</div>
-                  <div className={styles.courtStatus}>{selected ? 'Selected' : available ? 'Available' : 'Taken'}</div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-
-        {/* STEP 2 */}
-        <div className={styles.timeSection}>
-          <div className={styles.sectionLabel}>02 — Select Time</div>
-          <div className={styles.timeHint}>
+          <div className={styles.matrixHint}>
             {!selectedStart
-              ? 'Tap an hour. Tap a second hour to extend the range.'
+              ? 'Tap a green cell to pick a court & start time. Tap another cell to extend the range, or a column header (C1–C10) to add courts for tournaments.'
               : !selectedEnd || endH === (startH ?? 0) + 1
-                ? <><span className={styles.hintGreen}>{formatTime(selectedStart)} — {formatTime(endTime!)}</span> · 1h · tap another hour to extend, tap again to deselect</>
-                : <><span className={styles.hintGreen}>{formatTime(selectedStart)} — {formatTime(selectedEnd!)}</span> · {duration}h · ₱{price.toLocaleString()} · tap any hour to change</>
+                ? <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(endTime!)}</span> · 1h · tap another cell to extend, tap again to deselect</>
+                : <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(selectedEnd!)}</span> · {duration}h · ₱{price.toLocaleString()} · tap any cell to change</>
             }
           </div>
-
-          <div className={styles.hourGrid} data-tour="hours">
-            {Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i).map(h => {
-              const t = toTime(h)
-              const taken = bookedHours.includes(h)
-              const status = getTimeStatus(t, slots)
-              const inRange = startH != null && endH != null && h >= startH && h < endH
-              return (
-                <button
-                  key={h}
-                  type="button"
-                  className={`${styles.hourBox} ${inRange ? styles.hourBoxSelected : ''} ${taken ? styles.hourBoxBooked : status === 'limited' ? styles.hourBoxLimited : ''}`}
-                  disabled={taken}
-                  onClick={() => handleHourClick(h)}
-                  aria-pressed={inRange}
-                >
-                  <span className={styles.hourBoxLabel}>{formatHour(h)}–{formatHour(h + 1)}</span>
-                </button>
-              )
-            })}
-          </div>
+          <CourtHourMatrix
+            courts={Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)}
+            hours={Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i)}
+            selectedCourts={selectedCourts}
+            startH={startH}
+            endH={endH}
+            isCellBooked={(c, h) => isSlotTaken(c, toTime(h))}
+            onToggleCourt={handleCourtSelect}
+            onCellClick={handleCellClick}
+            formatHour={formatHour}
+          />
         </div>
 
         {/* STEP 3 — DETAILS */}

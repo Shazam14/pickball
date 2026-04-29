@@ -2,19 +2,25 @@ import { test, expect } from '@playwright/test';
 
 const BASE = 'http://localhost:3000';
 
+// Suppress the first-visit auto-tour so it doesn't cover click targets.
+test.beforeEach(async ({ context }) => {
+  await context.addInitScript(() => {
+    try {
+      localStorage.setItem('pickball:tour:a:seen', '1');
+      localStorage.setItem('pickball:tour:b:seen', '1');
+    } catch {}
+  });
+});
+
 test.describe('Booking — Step 03 details + entrance fee', () => {
   test('form renders, stepper updates total, button gates on required fields', async ({ page }) => {
     await page.goto(`${BASE}/booking`);
 
-    // Wait for availability fetch + court grid
-    await expect(page.getByText('01 — Select Court')).toBeVisible();
+    // Wait for availability fetch + matrix
+    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
 
-    // Pick the first available court (Court 1)
-    await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
-
-    // Pick the first non-booked time. We'll grab any green available slot.
-    const firstAvailableSlot = page.locator('button[title]').filter({ hasText: /AM|PM/ }).first();
-    await firstAvailableSlot.click();
+    // Tap a matrix cell — auto-selects Court 1 + 7AM.
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
 
     // Step 03 should now be visible
     await expect(page.getByText('03 — Your Details')).toBeVisible();

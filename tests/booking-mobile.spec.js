@@ -36,7 +36,7 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.screenshot({ path: 'test-results/m375-booking-walkin.png', fullPage: true });
   });
 
-  test('booking — after court + hour-box + details filled (PC.3 hour boxes)', async ({ page }) => {
+  test('booking — matrix cell click (PG.1) auto-selects court + hour', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
@@ -46,9 +46,8 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.locator('button[class*="dayCard"]').first().click();
     await page.waitForTimeout(500);
 
-    await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
-    // Pick the 7AM–8AM hour box (PC.3)
-    await page.getByRole('button', { name: '7AM–8AM' }).click();
+    // Tap a single cell — auto-selects Court 1 + 7AM.
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
@@ -67,7 +66,7 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     }
   });
 
-  test('booking — multi-court (PB.3) + multi-hour range (PC.3)', async ({ page }) => {
+  test('booking — multi-court (PB.3) + multi-hour range via matrix (PG.1)', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
@@ -77,12 +76,12 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.locator('button[class*="dayCard"]').first().click();
     await page.waitForTimeout(500);
 
-    // Pick court 1 then court 2 — both should remain selected (toggle add).
-    await page.locator('div').filter({ hasText: /^1Court(Available|Selected)$/ }).first().click();
-    await page.locator('div').filter({ hasText: /^2Court(Available|Selected)$/ }).first().click();
-    // Pick a 2-hour range by extending: 7AM–8AM, then 8AM–9AM.
-    await page.getByRole('button', { name: '7AM–8AM' }).click();
-    await page.getByRole('button', { name: '8AM–9AM' }).click();
+    // Tap (Court 1, 7AM) — selects court 1 + 7AM.
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    // Tap C2 column header — adds court 2 to selection (no hour change).
+    await page.locator('[aria-label="Toggle Court 2"]').click();
+    // Tap (Court 1, 8AM) — extends to 7AM–9AM range across both courts.
+    await page.locator('[aria-label="Court 1 at 8AM"]').click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
