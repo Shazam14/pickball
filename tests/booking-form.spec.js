@@ -60,4 +60,23 @@ test.describe('Booking — Step 03 details + entrance fee', () => {
     const liveBtn = page.getByRole('button', { name: /Confirm & Pay/ });
     await expect(liveBtn).toBeEnabled();
   });
+
+  test('clicking one cell does not tint the rest of the court column', async ({ page }) => {
+    await page.goto(`${BASE}/booking`);
+    await expect(page.getByText('01 — Pick Court & Time')).toBeVisible();
+
+    // Tap a single cell — should select ONLY (C1, 7AM).
+    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+
+    // The clicked cell carries the bright "selected" styling.
+    await expect(page.locator('[aria-label="Court 1 at 7AM"]'))
+      .toHaveClass(/matrixCellSelected/);
+
+    // Other cells in the same column must NOT light up.
+    for (const hour of ['8AM', '9AM', '10AM', '11AM', '12PM', '1PM']) {
+      const cell = page.locator(`[aria-label="Court 1 at ${hour}"]`);
+      await expect(cell).not.toHaveClass(/matrixCellInCourt/);
+      await expect(cell).not.toHaveClass(/matrixCellSelected/);
+    }
+  });
 });

@@ -38,7 +38,7 @@ export default function CourtHourMatrix({
                   aria-pressed={sel}
                   onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleCourt(c) } }}
                 >
-                  C{c}
+                  SO{c}
                 </th>
               )
             })}
@@ -60,7 +60,6 @@ export default function CourtHourMatrix({
                     styles.matrixCell,
                     booked ? styles.matrixCellBooked : '',
                     cellSel ? styles.matrixCellSelected : '',
-                    courtSel && !booked && !cellSel ? styles.matrixCellInCourt : '',
                   ].filter(Boolean).join(' ')
                   return (
                     <td

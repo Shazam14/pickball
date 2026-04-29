@@ -94,7 +94,7 @@ const TOUR_A_STEPS: TourStep[] = [
     element: '[data-tour="matrix"]',
     popover: {
       title: 'Pick your court & time',
-      description: 'Tap any green cell to start. Tap another cell to extend the hour range, or tap a <b>C1…C10</b> column header to add another court (tournaments). Striped cells are booked.',
+      description: 'Tap any green cell to start. Tap another cell to extend the hour range, or tap a <b>SO1…SO10</b> column header to add another court (tournaments). Striped cells are booked.',
       side: 'top', align: 'center',
     },
   },
@@ -502,7 +502,7 @@ export default function BookingPage() {
           </div>
           <div className={styles.matrixHint}>
             {!selectedStart
-              ? 'Tap a green cell to pick a court & start time. Tap another cell to extend the range, or a column header (C1–C10) to add courts for tournaments.'
+              ? 'Tap a green cell to pick a court & start time. Tap another cell to extend the range, or a column header (SO1–SO10) to add courts for tournaments.'
               : !selectedEnd || endH === (startH ?? 0) + 1
                 ? <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(endTime!)}</span> · 1h · tap another cell to extend, tap again to deselect</>
                 : <><span className={styles.hintGreen}>{selectedCourts.length > 1 ? `Courts ${selectedCourts.join(', ')}` : `Court ${selectedCourts[0] ?? '—'}`} · {formatTime(selectedStart)} — {formatTime(selectedEnd!)}</span> · {duration}h · ₱{price.toLocaleString()} · tap any cell to change</>
