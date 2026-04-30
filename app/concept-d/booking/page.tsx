@@ -10,6 +10,15 @@ import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
 type SlotMatrix = Record<string, { court: number; available: boolean }[]>
+type TimeStatus = 'available' | 'limited' | 'booked'
+
+function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
+  if (!slots[time]) return 'available'
+  const count = slots[time].filter(s => s.available).length
+  if (count === 0) return 'booked'
+  if (count <= 3) return 'limited'
+  return 'available'
+}
 
 function formatTime(t: string) {
   const hr = parseInt(t.split(':')[0])
@@ -254,6 +263,7 @@ export default function ConceptDBookingPage() {
             isCellBooked={(c, h) => isSlotTaken(c, toTime(h))}
             onCellClick={handleCellClick}
             formatHour={formatHour}
+            getRowStatus={(h) => getTimeStatus(toTime(h), slots)}
           />
           {selections.length > 0 && (
             <button type="button" className={styles.resetLink} onClick={handleResetAll} aria-label="Reset all selections">

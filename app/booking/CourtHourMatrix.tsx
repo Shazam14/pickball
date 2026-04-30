@@ -2,6 +2,8 @@
 
 import styles from './booking.module.css'
 
+type RowStatus = 'available' | 'limited' | 'booked'
+
 interface Props {
   courts: number[]
   hours: number[]
@@ -15,11 +17,18 @@ interface Props {
   onToggleCourt: (court: number) => void
   onCellClick: (court: number, hour: number) => void
   formatHour: (h: number) => string
+  getRowStatus?: (h: number) => RowStatus
+}
+
+const STATUS_COLOR: Record<RowStatus, string> = {
+  available: '#22c55e',
+  limited: '#f59e0b',
+  booked: '#ef4444',
 }
 
 export default function CourtHourMatrix({
   courts, hours, selectedCourts, anchorH, startH, endH, phase,
-  isCellBooked, isCellHeld, onToggleCourt, onCellClick, formatHour,
+  isCellBooked, isCellHeld, onToggleCourt, onCellClick, formatHour, getRowStatus,
 }: Props) {
   const headersInteractive = phase === 'courts'
   const cellsInteractive = phase === 'time'
@@ -68,6 +77,7 @@ export default function CourtHourMatrix({
             return (
               <tr key={h}>
                 <td className={`${styles.matrixTimeCell} ${inRangeRow ? styles.matrixTimeCellSelected : ''}`}>
+                  {getRowStatus && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', backgroundColor: STATUS_COLOR[getRowStatus(h)], marginRight: 5, verticalAlign: 'middle' }} />}
                   {formatHour(h)}–{formatHour(h + 1)}
                 </td>
                 {courts.map(c => {

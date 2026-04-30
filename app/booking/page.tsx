@@ -481,6 +481,7 @@ export default function BookingPage() {
             onToggleCourt={handleCourtSelect}
             onCellClick={handleCellClick}
             formatHour={formatHour}
+            getRowStatus={(h) => getTimeStatus(toTime(h), slots)}
           />
           {anchorH !== null && (
             <button

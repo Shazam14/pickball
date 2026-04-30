@@ -549,6 +549,7 @@ export default function BookingPage() {
             onToggleCourt={handleCourtSelect}
             onCellClick={handleCellClick}
             formatHour={formatHour}
+            getRowStatus={(h) => getTimeStatus(toTime(h), slots)}
           />
           <div className={styles.durationRow} data-tour="duration">
             <span className={styles.durationLabel}>Duration</span>

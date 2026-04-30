@@ -4,6 +4,14 @@ import styles from './booking.module.css'
 
 export type Selection = { court: number; anchorH: number; endH: number | null }
 
+type RowStatus = 'available' | 'limited' | 'booked'
+
+const STATUS_COLOR: Record<RowStatus, string> = {
+  available: '#22c55e',
+  limited: '#f59e0b',
+  booked: '#ef4444',
+}
+
 interface Props {
   courts: number[]
   hours: number[]
@@ -11,6 +19,7 @@ interface Props {
   isCellBooked: (court: number, hour: number) => boolean
   onCellClick: (court: number, hour: number) => void
   formatHour: (h: number) => string
+  getRowStatus?: (h: number) => RowStatus
 }
 
 function selectionForCourt(selections: Selection[], court: number): Selection | null {
@@ -23,7 +32,7 @@ function rangeOf(s: Selection): { min: number; max: number } | null {
 }
 
 export default function CourtHourMatrix({
-  courts, hours, selections, isCellBooked, onCellClick, formatHour,
+  courts, hours, selections, isCellBooked, onCellClick, formatHour, getRowStatus,
 }: Props) {
   return (
     <div className={styles.matrixWrap} data-tour="matrix">
@@ -46,6 +55,7 @@ export default function CourtHourMatrix({
           {hours.map(h => (
             <tr key={h}>
               <td className={styles.matrixTimeCell}>
+                {getRowStatus && <span style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', backgroundColor: STATUS_COLOR[getRowStatus(h)], marginRight: 5, verticalAlign: 'middle' }} />}
                 {formatHour(h)}–{formatHour(h + 1)}
               </td>
               {courts.map(c => {
