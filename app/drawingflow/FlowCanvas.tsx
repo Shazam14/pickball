@@ -1,5 +1,12 @@
-import { Tldraw, createShapeId, toRichText, type Editor, type TLShapePartial } from 'tldraw'
+import { Tldraw, createShapeId, iconTypes, toRichText, type Editor, type TLShapePartial } from 'tldraw'
 import 'tldraw/tldraw.css'
+
+// Self-host the icon sprite to avoid cross-origin SVG fragment blocking
+const localAssetUrls = {
+  icons: Object.fromEntries(
+    iconTypes.map((name) => [name, `/tldraw/0_merged.svg#${name}`])
+  ),
+}
 
 // ── layout constants ────────────────────────────────────────────
 const W = 186   // box width
@@ -197,7 +204,7 @@ export default function FlowCanvas() {
 
   return (
     <div style={{ position: 'fixed', inset: 0 }}>
-      <Tldraw onMount={handleMount} />
+      <Tldraw onMount={handleMount} assetUrls={localAssetUrls} />
     </div>
   )
 }
