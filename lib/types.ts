@@ -14,6 +14,7 @@ export interface Booking {
   customer_name: string
   customer_phone: string
   customer_email?: string
+  player_names?: string[]
   payment_method?: PaymentMethod
   payment_reference?: string
   status: BookingStatus
@@ -41,6 +42,7 @@ export interface LockSlotRequest {
   customer_name: string
   customer_phone: string
   customer_email?: string
+  player_names?: string[]
 }
 
 export interface ConfirmBookingRequest {

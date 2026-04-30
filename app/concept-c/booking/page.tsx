@@ -153,8 +153,13 @@ export default function BookingPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
   const [players, setPlayers] = useState(4)
+  const [playerNames, setPlayerNames] = useState<string[]>(() => Array(3).fill(''))
   const [duration, setDuration] = useState(1)
   const [phase, setPhase] = useState<'time' | 'courts'>('time')
+
+  useEffect(() => {
+    setPlayerNames(prev => Array.from({ length: Math.max(0, players - 1) }, (_, i) => prev[i] ?? ''))
+  }, [players])
 
   const endTime = selectedStart ? toTime(hourOf(selectedStart) + duration) : null
   const courtFee = duration * COURT_PRICE_PER_HOUR * selectedCourts.length
@@ -343,6 +348,7 @@ export default function BookingPage() {
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           customer_email: customerEmail.trim() || undefined,
+          player_names: [customerName.trim(), ...playerNames],
         }),
       })
       const data = await res.json()
@@ -378,6 +384,7 @@ export default function BookingPage() {
     })
     setSelectedCourts([]); setSelectedStart(null); setSelectedEnd(null)
     setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4); setDuration(1)
+    setPlayerNames(Array(3).fill(''))
     setPhase('time')
     fetchAvailability(date)
   }
@@ -610,7 +617,7 @@ export default function BookingPage() {
           <div className={styles.detailsSection}>
             <div className={styles.sectionLabel}>03 — Your Details</div>
             <p className={styles.detailsNote}>
-              We&apos;ll email you a link to add your other players&apos; names — each player gets a QR gate pass for entry.
+              Each player gets a QR gate pass for check-in. Add names now — they&apos;re optional but help at the gate.
             </p>
             <div className={styles.detailsGrid}>
               <div className={styles.field}>
@@ -662,6 +669,29 @@ export default function BookingPage() {
                   >+</button>
                 </div>
               </div>
+            </div>
+
+            {/* Player names — slot 0 mirrors booker, slots 1..N-1 editable */}
+            <div className={styles.playerNamesSection}>
+              <div className={styles.playerNamesLabel}>Player Names (optional)</div>
+              <div className={styles.playerNameRow}>
+                <span className={styles.playerIdx}>1</span>
+                <input className="field-input" value={customerName || '—'} readOnly
+                  style={{ opacity: 0.55, cursor: 'not-allowed', flex: 1 }} />
+                <span className={styles.youBadge}>YOU</span>
+              </div>
+              {playerNames.map((name, i) => (
+                <div key={i} className={styles.playerNameRow}>
+                  <span className={styles.playerIdx}>{i + 2}</span>
+                  <input
+                    className="field-input"
+                    style={{ flex: 1 }}
+                    value={name}
+                    onChange={e => setPlayerNames(prev => prev.map((n, j) => j === i ? e.target.value : n))}
+                    placeholder={`Player ${i + 2} name (optional)`}
+                  />
+                </div>
+              ))}
             </div>
           </div>
         )}

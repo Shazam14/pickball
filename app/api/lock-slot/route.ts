@@ -5,7 +5,7 @@ import { LockSlotRequest, LOCK_DURATION_MINUTES } from '@/lib/types'
 // POST /api/lock-slot
 export async function POST(req: NextRequest) {
   const body: LockSlotRequest = await req.json()
-  const { court_numbers, booking_date, start_time, duration, players, customer_name, customer_phone, customer_email } = body
+  const { court_numbers, booking_date, start_time, duration, players, customer_name, customer_phone, customer_email, player_names } = body
 
   if (!Array.isArray(court_numbers) || court_numbers.length === 0 || !booking_date || !start_time || !duration || !customer_name || !customer_phone) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
     customer_name,
     customer_phone,
     customer_email: customer_email || null,
+    player_names: player_names || null,
     status: 'locked' as const,
     locked_until,
   }))

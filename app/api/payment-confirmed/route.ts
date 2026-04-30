@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
   if (!existingPlayers || existingPlayers.length === 0) {
     const playerRows = Array.from({ length: lead.players }, (_, i) => ({
       booking_id: lead.id,
-      full_name: i === 0 ? lead.customer_name : null,
+      full_name: lead.player_names?.[i] || (i === 0 ? lead.customer_name : null),
     }))
     await supabase.from('booking_players').insert(playerRows)
   }
