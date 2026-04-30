@@ -1,4 +1,4 @@
-import { Tldraw, createShapeId, type Editor, type TLShapePartial } from 'tldraw'
+import { Tldraw, createShapeId, toRichText, type Editor, type TLShapePartial } from 'tldraw'
 import 'tldraw/tldraw.css'
 
 // ── layout constants ────────────────────────────────────────────
@@ -28,7 +28,7 @@ function box(
     props: {
       geo: 'rectangle',
       w, h: H,
-      text,
+      richText: toRichText(text),
       fill: 'solid',
       color,
       size: 's',
@@ -47,7 +47,7 @@ function pill(id: string, x: number, y: number, text: string): TLShapePartial {
     props: {
       geo: 'rectangle',
       w: 140, h: H,
-      text,
+      richText: toRichText(text),
       fill: 'semi',
       color: 'grey',
       size: 's',
@@ -65,8 +65,10 @@ function arrowH(id: string, fromX: number, laneY: number): TLShapePartial {
     x: fromX + W,
     y: laneY + MID,
     props: {
-      start: { type: 'point', x: 0, y: 0 },
-      end: { type: 'point', x: P - W, y: 0 },
+      kind: 'arc',
+      start: { x: 0, y: 0 },
+      end: { x: P - W, y: 0 },
+      bend: 0,
       color: 'grey',
       size: 's',
       arrowheadStart: 'none',
@@ -82,8 +84,10 @@ function arrowV(id: string, x: number, fromY: number, toY: number): TLShapeParti
     x: x + W / 2,
     y: fromY + H,
     props: {
-      start: { type: 'point', x: 0, y: 0 },
-      end: { type: 'point', x: 0, y: toY - fromY - H },
+      kind: 'arc',
+      start: { x: 0, y: 0 },
+      end: { x: 0, y: toY - fromY - H },
+      bend: 0,
       color: 'grey',
       size: 's',
       arrowheadStart: 'none',
