@@ -65,6 +65,7 @@ function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
   return 'available'
 }
 
+function hourOf(t: string) { return parseInt(t.split(':')[0]) }
 function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
 
 const HOUR_MIN = 6
@@ -83,8 +84,24 @@ const TOUR_A_STEPS: TourStep[] = [
   {
     element: '[data-tour="matrix"]',
     popover: {
-      title: 'Pick your time',
-      description: 'Tap one cell to set the start hour. Tap a second cell to set the end. Tap headers (SO1–SO10) afterward to add courts for tournaments.',
+      title: 'Pick your start time',
+      description: 'Tap a green cell to pick your court & start hour — one tap, one cell. Striped cells are already booked.',
+      side: 'top', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="duration"]',
+    popover: {
+      title: 'How long?',
+      description: 'Use the <b>Duration</b> stepper to book multi-hour blocks. The matrix lights up the hours you\'ll get.',
+      side: 'top', align: 'center',
+    },
+  },
+  {
+    element: '[data-tour="continue"]',
+    popover: {
+      title: 'Lock time, then choose courts',
+      description: 'Tap <b>Continue</b> to move on. Single court? Just continue. Tournament? After continuing, the column headers (SO1–SO10) become tappable so you can add courts.',
       side: 'top', align: 'center',
     },
   },
@@ -123,8 +140,8 @@ export default function BookingPage() {
   const [loading, setLoading] = useState(false)
 
   const [selectedCourts, setSelectedCourts] = useState<number[]>([])
-  const [anchorH, setAnchorH] = useState<number | null>(null)
-  const [endH, setEndH] = useState<number | null>(null)
+  const [selectedStart, setSelectedStart] = useState<string | null>(null)
+  const [selectedEnd, setSelectedEnd] = useState<string | null>(null)
 
   const [locking, setLocking] = useState(false)
   const [lockError, setLockError] = useState('')
@@ -136,16 +153,10 @@ export default function BookingPage() {
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
   const [players, setPlayers] = useState(4)
+  const [duration, setDuration] = useState(1)
+  const [phase, setPhase] = useState<'time' | 'courts'>('time')
 
-  const phase: 'time' | 'courts' = endH === null ? 'time' : 'courts'
-  const startH: number | null =
-    anchorH === null ? null : endH === null ? null : Math.min(anchorH, endH)
-  const endHExcl: number | null =
-    endH === null ? null : Math.max(anchorH!, endH) + 1
-  const duration = endH === null ? 0 : Math.abs(endH - (anchorH ?? 0)) + 1
-  const selectedStart = startH === null ? null : toTime(startH)
-  const endTime = endHExcl === null ? null : toTime(endHExcl)
-
+  const endTime = selectedStart ? toTime(hourOf(selectedStart) + duration) : null
   const courtFee = duration * COURT_PRICE_PER_HOUR * selectedCourts.length
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const price = courtFee + entranceFee
@@ -160,8 +171,9 @@ export default function BookingPage() {
   const fetchAvailability = useCallback(async (d: string) => {
     setLoading(true)
     setSelectedCourts([])
-    setAnchorH(null)
-    setEndH(null)
+    setSelectedStart(null)
+    setSelectedEnd(null)
+    setPhase('time')
     try {
       const res = await fetch(`/api/availability?date=${d}&duration=1`)
       const data = await res.json()
@@ -196,9 +208,39 @@ export default function BookingPage() {
   const isSlotTaken = (court: number, time: string) =>
     !(slots[time]?.find(s => s.court === court)?.available ?? true)
 
+  // Check all hours in a range are free across ALL selected courts.
+  const isRangeClear = useCallback((startH: number, endH: number) => {
+    for (let h = startH; h < endH; h++) {
+      const t = toTime(h)
+      if (selectedCourts.length > 0) {
+        if (selectedCourts.some(c => isSlotTaken(c, t))) return false
+      } else {
+        if (getTimeStatus(t, slots) === 'booked') return false
+      }
+    }
+    return true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCourts, slots])
+
+  // ---- TIME (matrix range = startH .. startH + duration) ----
+  const startH = selectedStart ? hourOf(selectedStart) : null
+  const endH = startH != null ? startH + duration : null
+
+  const bookedHours = (() => {
+    const out: number[] = []
+    for (let h = HOUR_MIN; h < HOUR_MAX; h++) {
+      const t = toTime(h)
+      const taken = selectedCourts.length > 0
+        ? selectedCourts.some(c => isSlotTaken(c, t))
+        : getTimeStatus(t, slots) === 'booked'
+      if (taken) out.push(h)
+    }
+    return out
+  })()
+
   // Phase 2 only — toggle add/remove a court (anchor court is permanent).
   const handleCourtSelect = (court: number) => {
-    if (phase !== 'courts' || anchorH === null || endH === null) return
+    if (phase !== 'courts') return
     setLockError('')
 
     const anchorCourt = selectedCourts[0]
@@ -211,49 +253,77 @@ export default function BookingPage() {
     }
 
     // Adding a court — must be free across the full hour range.
-    const min = Math.min(anchorH, endH)
-    const max = Math.max(anchorH, endH)
-    for (let h = min; h <= max; h++) {
-      if (isSlotTaken(court, toTime(h))) {
-        setLockError(`SO${court} is booked at ${formatHour(h)}. Pick another court.`)
-        return
+    if (startH != null) {
+      for (let h = startH; h < startH + duration; h++) {
+        if (isSlotTaken(court, toTime(h))) {
+          setLockError(`SO${court} is booked at ${formatHour(h)}. Pick another court.`)
+          return
+        }
       }
     }
     setSelectedCourts(prev => [...prev, court].sort((a, b) => a - b))
   }
 
   function handleCellClick(court: number, h: number) {
+    // Phase 2 — matrix is read-only. Use Back to change time.
+    if (phase !== 'time') return
+    if (bookedHours.includes(h)) return
     setLockError('')
-    if (isSlotTaken(court, toTime(h))) return
 
-    // Phase 1 — first tap sets anchor and auto-selects that court.
-    if (anchorH === null) {
-      setAnchorH(h)
-      setSelectedCourts([court])
+    // Tap the current anchor cell again → deselect.
+    if (selectedCourts.length === 1 && selectedCourts[0] === court && startH === h) {
+      setSelectedStart(null)
+      setSelectedEnd(null)
       return
     }
 
-    // Phase 2 — cell taps are inert. Use Reset.
-    if (endH !== null) return
-
-    // Phase 1.5 — second tap commits the range on the originally-tapped court.
-    const origCourt = selectedCourts[0]
-    const min = Math.min(anchorH, h)
-    const max = Math.max(anchorH, h)
-    for (let hh = min; hh <= max; hh++) {
-      if (isSlotTaken(origCourt, toTime(hh))) {
-        setLockError(`That range overlaps a booked slot on Court SO${origCourt}. Pick a smaller range or Reset.`)
-        return
-      }
+    const newEnd = h + duration
+    if (newEnd > HOUR_MAX) {
+      setLockError(`That start would run past ${formatHour(HOUR_MAX)}. Reduce duration or pick an earlier start.`)
+      return
     }
-    setEndH(h)
+    if (!isRangeClear(h, newEnd)) {
+      setLockError(`That ${duration}h block overlaps a booked slot. Pick a different start.`)
+      return
+    }
+
+    // Phase 1: always single-court anchor.
+    setSelectedCourts([court])
+    setSelectedStart(toTime(h))
+    setSelectedEnd(toTime(newEnd))
   }
 
-  function handleReset() {
+  function goToPhaseCourts() {
+    if (selectedCourts.length === 0 || !selectedStart) return
     setLockError('')
-    setAnchorH(null)
-    setEndH(null)
-    setSelectedCourts([])
+    setPhase('courts')
+  }
+
+  function backToPhaseTime() {
+    setLockError('')
+    // Drop any extra courts added in phase 2 — keep only the anchor.
+    if (selectedCourts.length > 1) {
+      setSelectedCourts([selectedCourts[0]])
+    }
+    setPhase('time')
+  }
+
+  function bumpDuration(delta: number) {
+    setLockError('')
+    const newD = Math.max(1, Math.min(8, duration + delta))
+    if (newD === duration) return
+    if (startH != null) {
+      if (startH + newD > HOUR_MAX) {
+        setLockError(`Can't extend past ${formatHour(HOUR_MAX)} from this start time.`)
+        return
+      }
+      if (!isRangeClear(startH, startH + newD)) {
+        setLockError(`Can't extend to ${newD}h — that range overlaps a booked slot.`)
+        return
+      }
+      setSelectedEnd(toTime(startH + newD))
+    }
+    setDuration(newD)
   }
 
   async function handleLockAndPay() {
@@ -286,7 +356,7 @@ export default function BookingPage() {
 
   function handleExpire() {
     setShowModal(false); setLockData(null)
-    setAnchorH(null); setEndH(null)
+    setSelectedStart(null); setSelectedEnd(null)
     fetchAvailability(date)
     setLockError('Your 5-minute hold expired. Please select a slot again.')
   }
@@ -306,8 +376,9 @@ export default function BookingPage() {
       customerPhone,
       customerEmail: customerEmail.trim() || undefined,
     })
-    setSelectedCourts([]); setAnchorH(null); setEndH(null)
-    setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4)
+    setSelectedCourts([]); setSelectedStart(null); setSelectedEnd(null)
+    setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4); setDuration(1)
+    setPhase('time')
     fetchAvailability(date)
   }
 
@@ -354,9 +425,9 @@ export default function BookingPage() {
             <Link href="/" className={styles.back}>← Back</Link>
             <div className={styles.headerRight}>
               <TourButton storageKey="pickball:tour:a:seen" steps={TOUR_A_STEPS} className={styles.tourBtn} />
-              <Link href="/concept-c/booking" className={styles.conceptToggle} aria-label="Preview the old grid (Phase H)">
+              <Link href="/booking" className={styles.conceptToggle} aria-label="Back to the new Kiln-style grid">
                 <span className={styles.conceptDot} />
-                <span className={styles.conceptLabel}>OLD GRID →</span>
+                <span className={styles.conceptLabel}>← NEW GRID</span>
               </Link>
               <Link href="/concept-d/booking" className={styles.conceptToggle} aria-label="Preview independent multi-range">
                 <span className={styles.conceptDot} />
@@ -444,19 +515,19 @@ export default function BookingPage() {
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
           <div className={styles.matrixHint}>
-            {anchorH === null && (
+            {phase === 'time' && !selectedStart && (
               <span>01a — Tap a green cell to pick your court &amp; start time.</span>
             )}
-            {anchorH !== null && endH === null && (
+            {phase === 'time' && selectedStart && (
               <>
-                <span className={styles.hintGreen}>01a — Court SO{selectedCourts[0]} · {formatHour(anchorH)} anchor</span>
-                {' · '}tap a second cell to set the end time.
+                <span className={styles.hintGreen}>01a — Court SO{selectedCourts[0]} · {formatTime(selectedStart)} — {formatTime(endTime!)}</span>
+                {' · '}{duration}h · ₱{courtFee.toLocaleString()} · adjust duration below or continue →
               </>
             )}
-            {endH !== null && (
+            {phase === 'courts' && (
               <>
                 <span className={styles.hintGreen}>01b — {selectedCourts.length > 1 ? `Courts ${selectedCourts.map(c => `SO${c}`).join(', ')}` : `Court SO${selectedCourts[0]}`} · {formatTime(selectedStart!)} — {formatTime(endTime!)}</span>
-                {' · '}{duration}h · ₱{courtFee.toLocaleString()} · tap a header (SO1–SO10) to add courts for tournaments.
+                {' · '}tap a header (SO1–SO10) to add courts for tournaments. Tap ← Back to change time.
               </>
             )}
           </div>
@@ -464,25 +535,73 @@ export default function BookingPage() {
             courts={Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)}
             hours={Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i)}
             selectedCourts={selectedCourts}
-            anchorH={anchorH}
             startH={startH}
-            endH={endHExcl}
+            endH={endH}
             phase={phase}
             isCellBooked={(c, h) => isSlotTaken(c, toTime(h))}
-            isCellHeld={() => false}
             onToggleCourt={handleCourtSelect}
             onCellClick={handleCellClick}
             formatHour={formatHour}
           />
-          {anchorH !== null && (
-            <button
-              type="button"
-              className={styles.resetLink}
-              onClick={handleReset}
-              aria-label="Reset selection"
-            >
-              Reset
-            </button>
+          <div className={styles.durationRow} data-tour="duration">
+            <span className={styles.durationLabel}>Duration</span>
+            <div className={styles.stepper}>
+              <button
+                type="button"
+                className={styles.stepperBtn}
+                onClick={() => bumpDuration(-1)}
+                disabled={duration <= 1}
+                aria-label="Decrease duration"
+              >–</button>
+              <span className={styles.stepperValue}>{duration}h</span>
+              <button
+                type="button"
+                className={styles.stepperBtn}
+                onClick={() => bumpDuration(1)}
+                disabled={duration >= 8}
+                aria-label="Increase duration"
+              >+</button>
+            </div>
+            {selectedStart && (
+              <span className={styles.durationSummary}>
+                {formatTime(selectedStart)} — {formatTime(endTime!)} · ₱{courtFee.toLocaleString()}
+              </span>
+            )}
+          </div>
+
+          {/* PHASE TRANSITION BUTTONS */}
+          {phase === 'time' && (
+            <div className={styles.phaseActions} data-tour="continue">
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ clipPath: 'none' }}
+                onClick={goToPhaseCourts}
+                disabled={selectedCourts.length === 0 || !selectedStart}
+              >
+                Continue → Choose Courts
+              </button>
+              {selectedStart && (
+                <span className={styles.phaseHint}>or tap any cell to change your start time</span>
+              )}
+            </div>
+          )}
+          {phase === 'courts' && (
+            <div className={styles.phaseActions}>
+              <button
+                type="button"
+                className="btn-outline"
+                style={{ clipPath: 'none' }}
+                onClick={backToPhaseTime}
+              >
+                ← Back to Time
+              </button>
+              <span className={styles.phaseHint}>
+                {selectedCourts.length === 1
+                  ? 'Single court booking. Tap a header (SO1–SO10) above to add courts for tournaments.'
+                  : `${selectedCourts.length} courts selected. Tap headers above to add or remove.`}
+              </span>
+            </div>
           )}
         </div>
 

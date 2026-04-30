@@ -6,20 +6,18 @@ interface Props {
   courts: number[]
   hours: number[]
   selectedCourts: number[]
-  anchorH: number | null
   startH: number | null
   endH: number | null
   phase: 'time' | 'courts'
   isCellBooked: (court: number, hour: number) => boolean
-  isCellHeld: (court: number, hour: number) => boolean
   onToggleCourt: (court: number) => void
   onCellClick: (court: number, hour: number) => void
   formatHour: (h: number) => string
 }
 
 export default function CourtHourMatrix({
-  courts, hours, selectedCourts, anchorH, startH, endH, phase,
-  isCellBooked, isCellHeld, onToggleCourt, onCellClick, formatHour,
+  courts, hours, selectedCourts, startH, endH, phase,
+  isCellBooked, onToggleCourt, onCellClick, formatHour,
 }: Props) {
   const headersInteractive = phase === 'courts'
   const cellsInteractive = phase === 'time'
@@ -64,32 +62,22 @@ export default function CourtHourMatrix({
         <tbody>
           {hours.map(h => {
             const inRange = startH != null && endH != null && h >= startH && h < endH
-            const inRangeRow = inRange
             return (
               <tr key={h}>
-                <td className={`${styles.matrixTimeCell} ${inRangeRow ? styles.matrixTimeCellSelected : ''}`}>
+                <td className={`${styles.matrixTimeCell} ${inRange ? styles.matrixTimeCellSelected : ''}`}>
                   {formatHour(h)}–{formatHour(h + 1)}
                 </td>
                 {courts.map(c => {
                   const booked = isCellBooked(c, h)
-                  const held = !booked && isCellHeld(c, h)
                   const courtSel = selectedCourts.includes(c)
-                  const isAnchorCell = endH === null && anchorH === h && c === anchorCourt
-                  const cellSel = !isAnchorCell && courtSel && inRange
-                  const disabled = booked || held || !cellsInteractive
+                  const cellSel = courtSel && inRange
+                  const disabled = booked || !cellsInteractive
                   const cls = [
                     styles.matrixCell,
                     booked ? styles.matrixCellBooked : '',
-                    held ? styles.matrixCellHeld : '',
-                    isAnchorCell ? styles.matrixCellAnchor : '',
                     cellSel ? styles.matrixCellSelected : '',
-                    !cellsInteractive && !cellSel && !isAnchorCell && !booked && !held ? styles.matrixCellLocked : '',
+                    !cellsInteractive && !cellSel && !booked ? styles.matrixCellLocked : '',
                   ].filter(Boolean).join(' ')
-                  let glyph = ''
-                  if (booked) glyph = '×'
-                  else if (held) glyph = '⏱'
-                  else if (isAnchorCell) glyph = '●'
-                  else if (cellSel) glyph = '✓'
                   return (
                     <td
                       key={c}
@@ -101,7 +89,7 @@ export default function CourtHourMatrix({
                       aria-label={`Court ${c} at ${formatHour(h)}`}
                       onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onCellClick(c, h) } }}
                     >
-                      {glyph}
+                      {cellSel ? '✓' : booked ? '×' : ''}
                     </td>
                   )
                 })}

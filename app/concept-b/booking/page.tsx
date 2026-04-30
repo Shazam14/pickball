@@ -106,6 +106,26 @@ function TopBar() {
           <span style={{ width: 14, height: 14, borderRadius: '50%', background: t.green, display: 'inline-block' }} />
           ← BACK TO A
         </Link>
+        <Link href="/concept-c/booking" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)',
+          padding: '6px 12px', textDecoration: 'none', color: '#fff',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.18em', fontWeight: 700,
+          whiteSpace: 'nowrap',
+        }}>
+          <span style={{ width: 14, height: 14, borderRadius: '50%', background: t.green, display: 'inline-block' }} />
+          OLD GRID →
+        </Link>
+        <Link href="/concept-d/booking" style={{
+          display: 'inline-flex', alignItems: 'center', gap: 8,
+          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)',
+          padding: '6px 12px', textDecoration: 'none', color: '#fff',
+          fontFamily: 'JetBrains Mono, monospace', fontSize: 10, letterSpacing: '0.18em', fontWeight: 700,
+          whiteSpace: 'nowrap',
+        }}>
+          <span style={{ width: 14, height: 14, borderRadius: '50%', background: t.green, display: 'inline-block' }} />
+          INDEPENDENT →
+        </Link>
       </div>
     </div>
   )
