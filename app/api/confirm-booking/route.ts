@@ -65,22 +65,26 @@ export async function POST(req: NextRequest) {
     .eq('booking_id', lead.id)
     .limit(1)
 
+  let insertedPlayers: { full_name: string | null; checkin_token: string }[] = []
   if (!existingPlayers || existingPlayers.length === 0) {
     const playerRows = Array.from({ length: lead.players }, (_, i) => ({
       booking_id: lead.id,
       full_name: lead.player_names?.[i] || (i === 0 ? lead.customer_name : null),
     }))
-    const { error: playersError } = await getSupabaseAdmin()
+    const { data: newPlayers, error: playersError } = await getSupabaseAdmin()
       .from('booking_players')
       .insert(playerRows)
+      .select('full_name, checkin_token')
     if (playersError) {
       console.error('booking_players insert failed:', playersError)
+    } else {
+      insertedPlayers = newPlayers || []
     }
   }
 
   // Send notifications ONCE per reference (non-blocking).
   Promise.allSettled([
-    sendConfirmationEmail(lead),
+    sendConfirmationEmail(lead, courtNumbers, insertedPlayers),
     sendConfirmationSMS(lead),
   ])
 

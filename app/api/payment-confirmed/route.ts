@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
+import { sendConfirmationEmail, sendConfirmationSMS } from '@/lib/notifications'
 
 /**
  * Mock-parser endpoint. Accepts what a real GCash/Maya/GoTyme email parser
@@ -126,13 +127,25 @@ export async function POST(req: NextRequest) {
     .eq('booking_id', lead.id)
     .limit(1)
 
+  const courtNumbers = confirmedRows.map(b => b.court_number)
+  let insertedPlayers: { full_name: string | null; checkin_token: string }[] = []
   if (!existingPlayers || existingPlayers.length === 0) {
     const playerRows = Array.from({ length: lead.players }, (_, i) => ({
       booking_id: lead.id,
       full_name: lead.player_names?.[i] || (i === 0 ? lead.customer_name : null),
     }))
-    await supabase.from('booking_players').insert(playerRows)
+    const { data: newPlayers } = await supabase
+      .from('booking_players')
+      .insert(playerRows)
+      .select('full_name, checkin_token')
+    insertedPlayers = newPlayers || []
   }
+
+  // Send notifications (non-blocking).
+  Promise.allSettled([
+    sendConfirmationEmail(lead, courtNumbers, insertedPlayers),
+    sendConfirmationSMS(lead),
+  ])
 
   return NextResponse.json({
     result: 'confirmed',
