@@ -66,6 +66,7 @@ export async function sendConfirmationEmail(
   await getResend().emails.send({
     from: 'SideOut Court Booking <bookings@sideoutcebu.com>',
     to: booking.customer_email,
+    replyTo: ['danielle.kyle.francisco@gmail.com', 'angeleschristinediane@gmail.com'],
     subject: `Booking Confirmed — ${booking.reference}`,
     attachments,
     html: `
