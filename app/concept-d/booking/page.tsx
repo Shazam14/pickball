@@ -141,12 +141,13 @@ export default function ConceptDBookingPage() {
   const [loading, setLoading] = useState(false)
   const [picks, setPicks] = useState<Slot[]>([])
   const [players, setPlayers] = useState(4)
+  const [payOnsite, setPayOnsite] = useState(false)
   const [holidays, setHolidays] = useState<Set<string>>(new Set())
 
   const totalHours = picks.length
   const courtFee = picks.reduce((sum, p) => sum + priceForHour(date, p.hour, holidays), 0)
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
-  const price = courtFee + entranceFee
+  const onlineDue = courtFee + (payOnsite ? 0 : entranceFee)
 
   // Per-date cache + race-protection. cacheRef survives renders.
   const cacheRef = useRef<Map<string, SlotMatrix>>(new Map())
@@ -429,9 +430,22 @@ export default function ConceptDBookingPage() {
             <div className={styles.confirmRight}>
               <div className={styles.priceBreakdown}>
                 <span>Court ₱{courtFee.toLocaleString()}</span>
-                <span>+ Entrance ₱{entranceFee.toLocaleString()}</span>
+                <span>{payOnsite ? '·' : '+'} Entrance ₱{entranceFee.toLocaleString()}{payOnsite ? ' (onsite)' : ''}</span>
               </div>
-              <div className={styles.confirmPrice}>₱{price.toLocaleString()} <span>preview</span></div>
+              <button
+                type="button"
+                className={`${styles.payModeToggle} ${payOnsite ? styles.payModeToggleActive : ''}`}
+                onClick={() => setPayOnsite(v => !v)}
+                aria-pressed={payOnsite}
+                aria-label="Toggle pay entrance onsite"
+              >
+                <span className={styles.payModeSwitch} />
+                Pay entrance at front desk
+              </button>
+              <div className={styles.confirmPrice}>₱{onlineDue.toLocaleString()} <span>{payOnsite ? 'due online' : 'preview'}</span></div>
+              {payOnsite && (
+                <div className={styles.onsiteDueLine}>+ ₱{entranceFee.toLocaleString()} cash on arrival</div>
+              )}
               <button className="btn-primary" disabled style={{ fontSize: 14, padding: '14px 28px', opacity: 0.5, cursor: 'not-allowed' }}>
                 PREVIEW — no booking lands
               </button>

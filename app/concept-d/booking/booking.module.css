@@ -567,6 +567,43 @@
 .confirmRight { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .confirmPrice { font-family: var(--font-barlow-condensed), sans-serif; font-size: 36px; font-weight: 900; color: var(--white); }
 .confirmPrice span { font-size: 14px; color: var(--text-muted); font-weight: 400; }
+
+/* PAY MODE TOGGLE — sits inside .confirmRight between breakdown and total */
+.payModeToggle {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+.payModeToggle:hover { border-color: rgba(255,255,255,0.35); color: var(--text-light); }
+.payModeToggleActive {
+  border-color: rgba(245,158,11,0.55);
+  color: #f59e0b;
+  background: rgba(245,158,11,0.08);
+}
+.payModeSwitch {
+  width: 22px; height: 12px; border-radius: 0;
+  background: rgba(255,255,255,0.14);
+  position: relative; transition: background 0.15s;
+}
+.payModeSwitch::after {
+  content: ''; position: absolute;
+  top: 1px; left: 1px;
+  width: 10px; height: 10px;
+  background: var(--text-muted);
+  transition: left 0.15s, background 0.15s;
+}
+.payModeToggleActive .payModeSwitch { background: rgba(245,158,11,0.3); }
+.payModeToggleActive .payModeSwitch::after { left: 11px; background: #f59e0b; }
+
+.onsiteDueLine {
+  font-size: 12px; color: #f59e0b; letter-spacing: 0.5px;
+}
 .lockError { font-size: 12px; color: #fca5a5; }
 
 /* SUCCESS */

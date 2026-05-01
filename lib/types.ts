@@ -2,6 +2,10 @@ export type BookingStatus = 'locked' | 'confirmed' | 'cancelled' | 'expired'
 
 export type PaymentMethod = 'gcash' | 'maya' | 'gotyme'
 
+// 'online' = customer pays court + entrance online. 'onsite_entrance' = pays
+// court online; ₱50/player entrance is collected at the front desk on arrival.
+export type PayMode = 'online' | 'onsite_entrance'
+
 export interface Booking {
   id: string
   reference: string
@@ -17,6 +21,7 @@ export interface Booking {
   player_names?: string[]
   payment_method?: PaymentMethod
   payment_reference?: string
+  pay_mode: PayMode
   status: BookingStatus
   locked_until?: string      // ISO string
   created_at: string
@@ -53,6 +58,7 @@ export interface LockSlotRequest {
   customer_phone: string
   customer_email?: string
   player_names?: string[]
+  pay_mode?: PayMode  // default 'online'
 }
 
 export interface ConfirmBookingRequest {

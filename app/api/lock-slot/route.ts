@@ -6,6 +6,7 @@ import { LockSlotRequest, LockSlotRange, LOCK_DURATION_MINUTES } from '@/lib/typ
 export async function POST(req: NextRequest) {
   const body: LockSlotRequest = await req.json()
   const { booking_date, players, customer_name, customer_phone, customer_email, player_names } = body
+  const pay_mode = body.pay_mode === 'onsite_entrance' ? 'onsite_entrance' : 'online'
 
   if (!booking_date || !customer_name || !customer_phone) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -82,6 +83,7 @@ export async function POST(req: NextRequest) {
     customer_phone,
     customer_email: customer_email || null,
     player_names: player_names || null,
+    pay_mode,
     status: 'locked' as const,
     locked_until,
   }))

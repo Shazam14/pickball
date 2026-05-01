@@ -28,13 +28,16 @@ export async function sendConfirmationEmail(
   const year = parseInt(booking.booking_date.slice(0, 4))
   const holidays = await getHolidays(year)
   const courtFee = courtFeeFor(booking.booking_date, startHour, booking.duration, courts, holidays)
-  const total = courtFee + booking.players * ENTRANCE_FEE_PER_PERSON
+  const onsiteEntrance = booking.pay_mode === 'onsite_entrance'
+  const entranceFee = booking.players * ENTRANCE_FEE_PER_PERSON
+  const total = courtFee + (onsiteEntrance ? 0 : entranceFee)
   const courtLabel = courts === 1
     ? `Court ${courtNumbers[0]}`
     : `Courts ${courtNumbers.join(', ')}`
 
-  // Generate QR PNG buffer for each player's check-in URL.
-  const qrBuffers = await Promise.all(
+  // QR per player when entrance was paid online. In onsite mode the desk hands
+  // QRs out only after each player pays their ₱50 on arrival, so skip here.
+  const qrBuffers = onsiteEntrance ? [] : await Promise.all(
     players.map(p =>
       QRCode.toBuffer(`https://sideoutcebu.com/checkin/${p.checkin_token}`, {
         width: 120,
@@ -47,9 +50,9 @@ export async function sendConfirmationEmail(
   const playerRows = players.map((p, i) => `
     <tr style="border-bottom: 1px solid #1a1a1a;">
       <td style="padding: 8px 4px; color: #ccc; font-size: 13px;">${i + 1}. ${p.full_name || '—'}</td>
-      <td style="padding: 8px 4px; text-align: right;">
+      ${onsiteEntrance ? '' : `<td style="padding: 8px 4px; text-align: right;">
         <img src="cid:qr${i}" width="80" height="80" alt="QR ${i + 1}" style="display:block;margin-left:auto;" />
-      </td>
+      </td>`}
     </tr>
   `).join('')
 
@@ -97,15 +100,28 @@ export async function sendConfirmationEmail(
             <td style="padding: 10px 0; color: #666;">Total Paid</td>
             <td style="padding: 10px 0; text-align: right; color: #22c55e; font-weight: 700; font-size: 18px;">₱${total.toLocaleString()}</td>
           </tr>
+          ${onsiteEntrance ? `<tr>
+            <td style="padding: 10px 0; color: #666;">Due at Front Desk</td>
+            <td style="padding: 10px 0; text-align: right; color: #f59e0b; font-weight: 700;">₱${entranceFee.toLocaleString()} <span style="color: #666; font-weight: 400; font-size: 12px;">(₱${ENTRANCE_FEE_PER_PERSON} × ${booking.players})</span></td>
+          </tr>` : ''}
         </table>
+
+        ${onsiteEntrance ? `
+        <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.4); padding: 16px; margin-bottom: 24px;">
+          <div style="color: #f59e0b; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">Pay Entrance On Arrival</div>
+          <p style="margin: 0; font-size: 13px; color: #ddd; line-height: 1.55;">
+            Bring <strong>₱${entranceFee.toLocaleString()}</strong> cash (₱${ENTRANCE_FEE_PER_PERSON} per player). Pay at the front desk on arrival to get each player's check-in QR.
+          </p>
+        </div>
+        ` : ''}
 
         ${players.length > 0 ? `
         <div style="margin-bottom: 24px;">
-          <div style="font-size: 11px; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-bottom: 12px;">Players — Scan QR to Check In</div>
+          <div style="font-size: 11px; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-bottom: 12px;">Players ${onsiteEntrance ? '' : '— Scan QR to Check In'}</div>
           <table style="width: 100%; border-collapse: collapse;">
             ${playerRows}
           </table>
-          <p style="font-size: 12px; color: #555; margin-top: 8px;">Each QR code is unique to one player. Show it at the entrance.</p>
+          <p style="font-size: 12px; color: #555; margin-top: 8px;">${onsiteEntrance ? 'QR codes are issued at the front desk after entrance payment.' : 'Each QR code is unique to one player. Show it at the entrance.'}</p>
         </div>
         ` : ''}
 
@@ -126,12 +142,15 @@ export async function sendConfirmationSMS(booking: Booking) {
   const year = parseInt(booking.booking_date.slice(0, 4))
   const holidays = await getHolidays(year)
   const courtFee = courtFeeFor(booking.booking_date, startHour, booking.duration, 1, holidays)
-  const total = courtFee + booking.players * ENTRANCE_FEE_PER_PERSON
+  const onsiteEntrance = booking.pay_mode === 'onsite_entrance'
+  const entranceFee = booking.players * ENTRANCE_FEE_PER_PERSON
+  const total = courtFee + (onsiteEntrance ? 0 : entranceFee)
+  const onsiteLine = onsiteEntrance ? `\nDue on arrival: P${entranceFee} cash (P${ENTRANCE_FEE_PER_PERSON}/player)` : ''
   const message =
     `SideOut Booking Confirmed!\n` +
     `Ref: ${booking.reference}\n` +
     `${booking.booking_date} · ${formatTime(booking.start_time)}–${formatTime(booking.end_time)}\n` +
-    `Total: ₱${total.toLocaleString()}\n` +
+    `Paid: P${total.toLocaleString()}${onsiteLine}\n` +
     `See you on the court!`
 
   await fetch('https://api.semaphore.co/api/v4/messages', {

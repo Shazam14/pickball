@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
   // Pull all currently-locked bookings whose lock has not yet expired.
   const { data: locked, error: fetchError } = await supabase
     .from('bookings')
-    .select('reference, court_number, booking_date, start_time, duration, players, locked_until, status')
+    .select('reference, court_number, booking_date, start_time, duration, players, pay_mode, locked_until, status')
     .eq('status', 'locked')
 
   if (fetchError) {
@@ -72,15 +72,22 @@ export async function POST(req: NextRequest) {
   }
 
   // Compute total for each reference and find candidates within tolerance.
+  // Multi-range bookings have rows with distinct start_time/duration — sum per row.
+  // pay_mode='onsite_entrance' means the ₱50/player entrance is paid at the front
+  // desk on arrival, so the online total is court fee only.
   const candidates: { reference: string; total: number }[] = []
   for (const [ref, rows] of byReference) {
-    const courts = rows.length
-    const hours = rows[0].duration
-    const players = rows[0].players
+    const players = rows[0].players as number
     const date = rows[0].booking_date as string
-    const startHour = parseInt((rows[0].start_time as string).split(':')[0])
+    const payMode = (rows[0].pay_mode as string | null) === 'onsite_entrance' ? 'onsite_entrance' : 'online'
     const holidays = await getHolidays(parseInt(date.slice(0, 4)))
-    const total = courtFeeFor(date, startHour, hours, courts, holidays) + players * ENTRANCE_FEE_PER_PERSON
+    let courtFee = 0
+    for (const row of rows) {
+      const startHour = parseInt((row.start_time as string).split(':')[0])
+      courtFee += courtFeeFor(date, startHour, row.duration as number, 1, holidays)
+    }
+    const entrance = payMode === 'onsite_entrance' ? 0 : players * ENTRANCE_FEE_PER_PERSON
+    const total = courtFee + entrance
     if (Math.abs(total - amount) <= AMOUNT_TOLERANCE) {
       candidates.push({ reference: ref, total })
     }
