@@ -6,7 +6,16 @@ import { sendConfirmationEmail, sendConfirmationSMS } from '@/lib/notifications'
 // POST /api/confirm-booking
 export async function POST(req: NextRequest) {
   const body: ConfirmBookingRequest = await req.json()
-  const { reference, payment_method, payment_reference } = body
+  const {
+    reference,
+    payment_method,
+    payment_reference,
+    customer_name,
+    customer_phone,
+    customer_email,
+    player_names,
+    players,
+  } = body
 
   if (!reference || !payment_method || !payment_reference) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -35,16 +44,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Booking lock expired. Please start over.' }, { status: 410 })
   }
 
-  // Confirm all rows in one update.
+  // Confirm all rows in one update. Customer fields are filled in here when
+  // the lock was created without them (lock-on-Continue flow).
+  const updatePayload: Record<string, unknown> = {
+    status: 'confirmed',
+    payment_method,
+    payment_reference,
+    confirmed_at: new Date().toISOString(),
+    locked_until: null,
+  }
+  if (customer_name) updatePayload.customer_name = customer_name
+  if (customer_phone) updatePayload.customer_phone = customer_phone
+  if (customer_email !== undefined) updatePayload.customer_email = customer_email || null
+  if (player_names !== undefined) updatePayload.player_names = player_names
+  if (typeof players === 'number') updatePayload.players = players
+
   const { data: confirmedRows, error: updateError } = await getSupabaseAdmin()
     .from('bookings')
-    .update({
-      status: 'confirmed',
-      payment_method,
-      payment_reference,
-      confirmed_at: new Date().toISOString(),
-      locked_until: null,
-    })
+    .update(updatePayload)
     .eq('reference', reference)
     .eq('status', 'locked')
     .select()

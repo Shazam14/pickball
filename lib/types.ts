@@ -54,8 +54,10 @@ export interface LockSlotRequest {
 
   booking_date: string
   players: number
-  customer_name: string
-  customer_phone: string
+  // Customer fields are optional: lock-on-Continue locks slots before the
+  // user has filled in details. Filled in by /api/confirm-booking later.
+  customer_name?: string
+  customer_phone?: string
   customer_email?: string
   player_names?: string[]
   pay_mode?: PayMode  // default 'online'
@@ -65,12 +67,18 @@ export interface ConfirmBookingRequest {
   reference: string
   payment_method: PaymentMethod
   payment_reference: string
+  // Filled in at confirm time when lock was created without customer data.
+  customer_name?: string
+  customer_phone?: string
+  customer_email?: string
+  player_names?: string[]
+  players?: number
 }
 
 export const COURT_PRICE_PER_HOUR = 700  // peak: weekday 4pm–12am, all weekend, holidays
 export const COURT_PRICE_OFFPEAK = 600   // weekday 8am–4pm only
 export const ENTRANCE_FEE_PER_PERSON = 50
-export const LOCK_DURATION_MINUTES = 5
+export const LOCK_DURATION_MINUTES = 10
 export const OPEN_HOUR = 8
 export const CLOSE_HOUR = 24  // last booking ends at midnight
 export const TIME_SLOTS = [

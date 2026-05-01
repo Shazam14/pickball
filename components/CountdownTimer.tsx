@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { LOCK_DURATION_MINUTES } from '@/lib/types'
 import styles from './CountdownTimer.module.css'
 
 interface Props {
@@ -41,7 +42,7 @@ export default function CountdownTimer({ lockedUntil, onExpire }: Props) {
       <div className={styles.bar}>
         <div
           className={styles.fill}
-          style={{ width: `${(secondsLeft / (5 * 60)) * 100}%` }}
+          style={{ width: `${(secondsLeft / (LOCK_DURATION_MINUTES * 60)) * 100}%` }}
         />
       </div>
     </div>

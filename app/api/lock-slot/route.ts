@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   const { booking_date, players, customer_name, customer_phone, customer_email, player_names } = body
   const pay_mode = body.pay_mode === 'onsite_entrance' ? 'onsite_entrance' : 'online'
 
-  if (!booking_date || !customer_name || !customer_phone) {
+  if (!booking_date) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
 
@@ -79,8 +79,9 @@ export async function POST(req: NextRequest) {
     end_time: r.end_time,
     duration: r.duration,
     players,
-    customer_name,
-    customer_phone,
+    // Lock-on-Continue: customer details filled in by /api/confirm-booking.
+    customer_name: customer_name || '(pending)',
+    customer_phone: customer_phone || '(pending)',
     customer_email: customer_email || null,
     player_names: player_names || null,
     pay_mode,

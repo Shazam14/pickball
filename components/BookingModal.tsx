@@ -20,6 +20,8 @@ interface BookingDetails {
   customerName: string
   customerPhone: string
   customerEmail?: string
+  // Names for players 2..N (the booker's own name lives in customerName).
+  playerNames?: string[]
   // Multi-range bookings (concept-d). When present, replaces the single Court+Time row.
   ranges?: { court_number: number; start_time: string; end_time: string }[]
   // When true, entrance fee is paid in cash at the front desk (not in `price`).
@@ -92,6 +94,15 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
           reference: details.reference,
           payment_method: method,
           payment_reference: reference.trim(),
+          // Lock-on-Continue: customer fields were placeholders at lock time.
+          // Send the real values so confirm-booking writes them in the same UPDATE.
+          customer_name: details.customerName,
+          customer_phone: details.customerPhone,
+          customer_email: details.customerEmail,
+          player_names: details.payOnsite
+            ? [details.customerName]
+            : [details.customerName, ...(details.playerNames ?? [])],
+          players: details.players,
         }),
       })
       const data = await res.json()

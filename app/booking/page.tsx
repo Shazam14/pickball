@@ -145,6 +145,33 @@ function RateGuide({ date, holidays }: { date: string; holidays: Set<string> }) 
   )
 }
 
+// Compact countdown shown in the details phase header. The big timer in the
+// modal handles the same lock with the same lockedUntil — both stay in sync.
+function HoldBadge({ lockedUntil, onExpire }: { lockedUntil: string; onExpire: () => void }) {
+  const [secondsLeft, setSecondsLeft] = useState(0)
+  useEffect(() => {
+    const calc = () => Math.max(0, Math.floor((new Date(lockedUntil).getTime() - Date.now()) / 1000))
+    setSecondsLeft(calc())
+    const id = setInterval(() => {
+      const s = calc()
+      setSecondsLeft(s)
+      if (s === 0) { clearInterval(id); onExpire() }
+    }, 1000)
+    return () => clearInterval(id)
+  }, [lockedUntil, onExpire])
+  const m = Math.floor(secondsLeft / 60)
+  const s = secondsLeft % 60
+  const urgent = secondsLeft <= 60
+  return (
+    <div className={`${styles.holdBadge} ${urgent ? styles.holdBadgeUrgent : ''}`}>
+      <span>⏱ Hold</span>
+      <span className={styles.holdBadgeTime}>
+        {String(m).padStart(2, '0')}:{String(s).padStart(2, '0')}
+      </span>
+    </div>
+  )
+}
+
 export default function ConceptDBookingPage() {
   const [date, setDate] = useState(today())
   const [viewMonth, setViewMonth] = useState(() => {
@@ -213,6 +240,44 @@ export default function ConceptDBookingPage() {
       if (!opts?.background) setLoading(false)
     }
   }, [])
+
+  // Browser back: stay inside /booking. Map history state to in-page step.
+  // Reading `lockData` via ref so this listener doesn't need to be re-bound
+  // every time the lock changes.
+  const lockDataRef = useRef<LockData | null>(null)
+  useEffect(() => { lockDataRef.current = lockData }, [lockData])
+
+  useEffect(() => {
+    function onPop(e: PopStateEvent) {
+      const step = (e.state as { step?: string } | null)?.step
+      if (step === 'details') {
+        // Popped 'modal' → back to details. Modal closes, lock keeps ticking.
+        setShowModal(false)
+        return
+      }
+      // Popped 'details' (or initial entry) → back to review. Release the
+      // lock so the user can re-pick the same slots immediately.
+      setShowModal(false)
+      setPhase('review')
+      setSuccess(null)
+      const live = lockDataRef.current
+      if (live) {
+        setLockData(null)
+        fetch('/api/cancel-lock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reference: live.reference }),
+        })
+          .catch(() => {})
+          .finally(() => {
+            cacheRef.current.delete(date)
+            fetchAvailability(date, { background: true })
+          })
+      }
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [date, fetchAvailability])
 
   // User date change: clear picks, fetch (cache-first).
   useEffect(() => {
@@ -303,8 +368,11 @@ export default function ConceptDBookingPage() {
     }))
   }
 
-  async function handleLockAndPay() {
-    if (picks.length === 0 || !formValid) return
+  // Continue → lock the picked slots up front, then move to the details
+  // phase. Customer data is collected during details and written by
+  // /api/confirm-booking when the user submits payment.
+  async function handleContinue() {
+    if (picks.length === 0 || locking) return
     setLocking(true)
     setLockError('')
     try {
@@ -315,12 +383,6 @@ export default function ConceptDBookingPage() {
           ranges: rangesForApi(),
           booking_date: date,
           players,
-          customer_name: customerName.trim(),
-          customer_phone: customerPhone.trim(),
-          customer_email: customerEmail.trim() || undefined,
-          player_names: payOnsite
-            ? [customerName.trim()]
-            : [customerName.trim(), ...playerNames.map(n => n.trim())],
           pay_mode: payOnsite ? 'onsite_entrance' : 'online',
         }),
       })
@@ -334,7 +396,8 @@ export default function ConceptDBookingPage() {
         return
       }
       setLockData({ reference: data.reference, lockedUntil: data.locked_until, courtNumbers: data.court_numbers })
-      setShowModal(true)
+      setPhase('details')
+      window.history.pushState({ step: 'details' }, '', window.location.href)
     } catch {
       setLockError('Network error. Please try again.')
     } finally {
@@ -342,12 +405,20 @@ export default function ConceptDBookingPage() {
     }
   }
 
+  // Confirm & Pay → open the modal. Lock already exists from handleContinue;
+  // confirm-booking will fill in customer fields when the user submits payment.
+  function handleConfirmPay() {
+    if (!formValid || !lockData) return
+    setShowModal(true)
+    window.history.pushState({ step: 'modal' }, '', window.location.href)
+  }
+
   function handleExpire() {
     setShowModal(false); setLockData(null)
     setPicks([])
     cacheRef.current.delete(date)
     fetchAvailability(date)
-    setLockError('Your 5-minute hold expired. Please select again.')
+    setLockError('Your 10-minute hold expired. Please select again.')
   }
 
   function handleSuccess(reference: string) {
@@ -582,9 +653,10 @@ export default function ConceptDBookingPage() {
         {/* DETAILS — only after Continue */}
         {phase === 'details' && picks.length > 0 && (
           <div className={styles.detailsSection}>
-            <button type="button" className={styles.backLink} onClick={() => setPhase('review')}>
+            <button type="button" className={styles.backLink} onClick={() => window.history.back()}>
               ← Back to selection
             </button>
+            {lockData && <HoldBadge lockedUntil={lockData.lockedUntil} onExpire={handleExpire} />}
             <div className={styles.sectionLabel}>03 — Your Details</div>
 
             {!payOnsite && (
@@ -747,27 +819,28 @@ export default function ConceptDBookingPage() {
                 <div className={styles.onsiteDueLine}>+ ₱{entranceFee.toLocaleString()} cash on arrival</div>
               )}
               {phase === 'review' ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => setPhase('details')}
-                  style={{ fontSize: 14, padding: '14px 28px' }}
-                >
-                  Continue →
-                </button>
-              ) : (
                 <>
                   {lockError && <div className={styles.lockError}>{lockError}</div>}
                   <button
                     type="button"
                     className="btn-primary"
-                    onClick={handleLockAndPay}
-                    disabled={locking || !formValid}
+                    onClick={handleContinue}
+                    disabled={locking}
                     style={{ fontSize: 14, padding: '14px 28px' }}
                   >
-                    {locking ? 'Locking slot…' : !formValid ? 'Fill in your details' : 'Confirm & Pay — 5 min hold'}
+                    {locking ? 'Locking slot…' : 'Continue → 10 min hold'}
                   </button>
                 </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={handleConfirmPay}
+                  disabled={!formValid}
+                  style={{ fontSize: 14, padding: '14px 28px' }}
+                >
+                  {!formValid ? 'Fill in your details' : 'Confirm & Pay'}
+                </button>
               )}
             </div>
           </div>
@@ -791,12 +864,13 @@ export default function ConceptDBookingPage() {
             customerName,
             customerPhone,
             customerEmail: customerEmail.trim() || undefined,
+            playerNames: payOnsite ? [] : playerNames.map(n => n.trim()),
             ranges: rangesForDisplay(),
             payOnsite,
           }}
           onSuccess={handleSuccess}
           onExpire={handleExpire}
-          onClose={() => setShowModal(false)}
+          onClose={() => window.history.back()}
         />
       )}
     </>
