@@ -45,6 +45,8 @@ const MAX_DAYS_AHEAD = 60
 const HOUR_MIN = 6
 const HOUR_MAX = 22
 const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN
+// Beyond this gap, a 2nd tap is treated as "switch anchor" instead of committing a giant range.
+const MAX_RANGE_GAP = 4
 
 function buildMonthDays(year: number, month: number) {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -126,23 +128,35 @@ export default function ConceptDBookingPage() {
       return
     }
 
-    // Anchor set, no end yet → commit range (after conflict check).
-    if (existing.endH === null) {
-      const min = Math.min(existing.anchorH, h)
-      const max = Math.max(existing.anchorH, h)
-      for (let hh = min; hh <= max; hh++) {
-        if (isSlotTaken(court, toTime(hh))) {
-          setError(`SO${court} is booked at ${formatHour(hh)}. Pick a smaller range or remove it.`)
-          return
-        }
-      }
+    // Range already committed → replace with a fresh anchor (tap-to-cycle).
+    if (existing.endH !== null) {
       setSelections(prev =>
-        prev.map(s => s.court === court ? { ...s, endH: h } : s)
+        prev.map(s => s.court === court ? { court, anchorH: h, endH: null } : s)
       )
       return
     }
 
-    // Range committed → cell taps inert. Remove via × in the list.
+    // Pending anchor + far tap → treat as "switch anchor" (avoids accidental giant ranges).
+    // Same-cell tap (gap === 0) still commits a 1h range.
+    if (Math.abs(h - existing.anchorH) > MAX_RANGE_GAP) {
+      setSelections(prev =>
+        prev.map(s => s.court === court ? { court, anchorH: h, endH: null } : s)
+      )
+      return
+    }
+
+    // Commit range.
+    const min = Math.min(existing.anchorH, h)
+    const max = Math.max(existing.anchorH, h)
+    for (let hh = min; hh <= max; hh++) {
+      if (isSlotTaken(court, toTime(hh))) {
+        setError(`SO${court} is booked at ${formatHour(hh)}. Pick a smaller range or remove it.`)
+        return
+      }
+    }
+    setSelections(prev =>
+      prev.map(s => s.court === court ? { ...s, endH: h } : s)
+    )
   }
 
   function removeSelection(court: number) {
