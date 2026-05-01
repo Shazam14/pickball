@@ -99,7 +99,11 @@ export default function AdminPage() {
   async function handleLogin() {
     setAuthError('')
     const res = await fetch(`/api/admin/bookings?key=${encodeURIComponent(password)}`)
-    if (res.ok) { setKey(password); setAuthed(true) }
+    if (res.ok) {
+      setKey(password)
+      setAuthed(true)
+      sessionStorage.setItem('admin_key', password)
+    }
     else setAuthError('Invalid password')
   }
 
@@ -219,7 +223,9 @@ export default function AdminPage() {
           {filtered.map(b => (
             <div key={b.id} className={`${styles.card} ${styles[`card_${b.status}`]}`}>
               <div className={styles.cardTop}>
-                <div className={styles.ref}>{b.reference}</div>
+                <Link href={`/admin/booking/${encodeURIComponent(b.reference)}`} className={styles.ref} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  {b.reference} <span style={{ fontSize: 11, color: '#6b7280', letterSpacing: 1.5 }}>EDIT ↗</span>
+                </Link>
                 <span className={`${styles.statusBadge} ${styles[`status_${b.status}`]}`}>{b.status.toUpperCase()}</span>
               </div>
 
