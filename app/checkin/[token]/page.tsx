@@ -62,7 +62,10 @@ export default async function CheckinPage({ params }: { params: Promise<{ token:
 
   const start = manilaDate(booking.booking_date, booking.start_time)
   const end = manilaDate(booking.booking_date, booking.end_time)
-  const windowOpen = new Date(start.getTime() - 30 * 60 * 1000)
+  // Generous entry window: 2h before start (cafe/lounge warm-up) → 2h after end
+  // (post-game hangout). Total +4h beyond the booked court time.
+  const windowOpen = new Date(start.getTime() - 2 * 60 * 60 * 1000)
+  const windowClose = new Date(end.getTime() + 2 * 60 * 60 * 1000)
   const now = new Date()
 
   if (now < windowOpen) {
@@ -70,16 +73,16 @@ export default async function CheckinPage({ params }: { params: Promise<{ token:
       <Screen
         tone="warn"
         title="Too early"
-        subtitle={`Entry opens at ${fmtTime(windowOpen)} — 30 min before your booking starts at ${fmtTime(start)}.`}
+        subtitle={`Entry opens at ${fmtTime(windowOpen)} — 2 hours before your booking starts at ${fmtTime(start)}.`}
       />
     )
   }
-  if (now > end) {
+  if (now > windowClose) {
     return (
       <Screen
         tone="warn"
-        title="Booking ended"
-        subtitle={`Your booking ended at ${fmtTime(end)}.`}
+        title="Access window closed"
+        subtitle={`Your access ended at ${fmtTime(windowClose)} — 2 hours after your booking ended at ${fmtTime(end)}.`}
       />
     )
   }
