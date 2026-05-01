@@ -4,15 +4,36 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
 import BookingModal from '@/components/BookingModal'
-import TourButton, { type TourStep } from '@/components/TourButton'
 import { LobbyPlanButton } from '@/components/LobbyPlan'
-import CourtHourMatrix from './CourtHourMatrix'
-import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, COURT_PRICE_OFFPEAK, ENTRANCE_FEE_PER_PERSON, courtFeeFor } from '@/lib/types'
+import CourtHourMatrix, { type Slot } from './CourtHourMatrix'
+import { TOTAL_COURTS, ENTRANCE_FEE_PER_PERSON, priceForHour, COURT_PRICE_PER_HOUR, COURT_PRICE_OFFPEAK } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
+interface LockData { reference: string; lockedUntil: string; courtNumbers: number[] }
+interface SuccessData {
+  reference: string
+  ranges: { court_number: number; start_time: string; end_time: string }[]
+  bookingDate: string
+  price: number
+  players: number
+  customerName: string
+  customerPhone: string
+  customerEmail?: string
+  payOnsite: boolean
+  entranceFee: number
+}
+
 type SlotMatrix = Record<string, { court: number; available: boolean }[]>
 type TimeStatus = 'available' | 'limited' | 'booked'
+
+function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
+  if (!slots[time]) return 'available'
+  const count = slots[time].filter(s => s.available).length
+  if (count === 0) return 'booked'
+  if (count <= 3) return 'limited'
+  return 'available'
+}
 
 function formatTime(t: string) {
   const hr = parseInt(t.split(':')[0])
@@ -21,26 +42,24 @@ function formatTime(t: string) {
   if (hr === 12) return '12:00 PM'
   return `${hr - 12}:00 PM`
 }
-
 function formatHour(h: number) {
   if (h === 0 || h === 24) return '12AM'
   if (h < 12) return `${h}AM`
   if (h === 12) return '12PM'
   return `${h - 12}PM`
 }
-
 function isoOf(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
-
-function today() {
-  return isoOf(new Date())
-}
+function today() { return isoOf(new Date()) }
+function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
 
 const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
-const MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MAX_DAYS_AHEAD = 60
+const HOUR_MIN = 8
+const HOUR_MAX = 24
+const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN
 
 function buildMonthDays(year: number, month: number) {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -57,63 +76,76 @@ function buildMonthDays(year: number, month: number) {
   return out
 }
 
-function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
-  if (!slots[time]) return 'available'
-  const count = slots[time].filter(s => s.available).length
-  if (count === 0) return 'booked'
-  if (count <= 3) return 'limited'
-  return 'available'
+// Group flat slot list into per-court ranges of consecutive hours.
+function groupRanges(picks: Slot[]): { court: number; start: number; end: number }[] {
+  const byCourt = new Map<number, number[]>()
+  for (const p of picks) {
+    const arr = byCourt.get(p.court) ?? []
+    arr.push(p.hour)
+    byCourt.set(p.court, arr)
+  }
+  const out: { court: number; start: number; end: number }[] = []
+  for (const [court, hours] of byCourt) {
+    const sorted = [...hours].sort((a, b) => a - b)
+    let start = sorted[0]
+    let end = sorted[0]
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] === end + 1) {
+        end = sorted[i]
+      } else {
+        out.push({ court, start, end })
+        start = sorted[i]
+        end = sorted[i]
+      }
+    }
+    out.push({ court, start, end })
+  }
+  return out.sort((a, b) => a.court - b.court || a.start - b.start)
 }
 
-function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
+function RateGuide({ date, holidays }: { date: string; holidays: Set<string> }) {
+  const d = new Date(date + 'T00:00:00')
+  const dow = d.getDay()
+  const isWeekend = dow === 0 || dow === 6
+  const isHoliday = holidays.has(date)
+  const isFlatDay = isWeekend || isHoliday
 
-const HOUR_MIN = 8
-const HOUR_MAX = 24  // exclusive — last possible end-time is 24:00 (midnight)
-const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN  // 16
+  const ctxLabel = isHoliday ? `${DOW[dow].toUpperCase()} · HOLIDAY`
+    : isWeekend ? `${DOW[dow].toUpperCase()} · WEEKEND`
+    : `${DOW[dow].toUpperCase()} · WEEKDAY`
 
-const TOUR_A_STEPS: TourStep[] = [
-  {
-    element: '[data-tour="date"]',
-    popover: {
-      title: 'Pick a date',
-      description: 'Scroll the strip to any day this month. Use <b>‹ ›</b> to jump months. Booking is open up to 60 days ahead.',
-      side: 'bottom', align: 'center',
-    },
-  },
-  {
-    element: '[data-tour="matrix"]',
-    popover: {
-      title: 'Pick your time',
-      description: 'Tap one cell to set the start hour. Tap a second cell to set the end. Tap headers (SO1–SO10) afterward to add courts for tournaments.',
-      side: 'top', align: 'center',
-    },
-  },
-  {
-    element: '[data-tour="players"]',
-    popover: {
-      title: 'How many players?',
-      description: `₱${ENTRANCE_FEE_PER_PERSON} entrance per head — separate from the ₱${COURT_PRICE_OFFPEAK}–${COURT_PRICE_PER_HOUR}/hr court fee.`,
-      side: 'left', align: 'center',
-    },
-  },
-  {
-    element: '[data-tour="confirm"]',
-    popover: {
-      title: 'Review & reserve',
-      description: 'Once everything is filled in, the <b>Reserve & Pay</b> button opens the payment modal. Slot is held for 1 hour after locking.',
-      side: 'top', align: 'center',
-    },
-  },
-]
+  const tiers = [
+    { key: 'weekday-am', label: 'Weekday',          meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,  active: !isFlatDay },
+    { key: 'weekday-pm', label: 'Weekday',          meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR, active: !isFlatDay },
+    { key: 'flat',       label: 'Weekend / Holiday', meta: 'Sat–Sun · PH/Cebu',  price: COURT_PRICE_PER_HOUR, active: isFlatDay },
+  ]
 
-interface LockResponse { reference: string; lockedUntil: string; courtNumbers: number[] }
-interface SuccessData {
-  reference: string; courtNumbers: number[]; bookingDate: string
-  startTime: string; endTime: string; duration: number; price: number
-  players: number; customerName: string; customerPhone: string; customerEmail?: string
+  return (
+    <div className={styles.rateGuide}>
+      <div className={styles.rateGuideHead}>
+        <div className={styles.sectionLabel} style={{ marginBottom: 0 }}>Rate Guide</div>
+        <div className={styles.rateGuideHeadCtx}>Selected: <strong>{ctxLabel}</strong></div>
+      </div>
+      <div className={styles.rateChips}>
+        {tiers.map(t => (
+          <div key={t.key} className={`${styles.rateChip} ${t.active ? styles.rateChipActive : ''}`}>
+            <span className={styles.rateChipDot} />
+            <div className={styles.rateChipBody}>
+              <div className={styles.rateChipLabel}>{t.label}</div>
+              <div className={styles.rateChipMeta}>{t.meta}</div>
+            </div>
+            <div className={styles.rateChipPrice}>₱{t.price}<span>/hr</span></div>
+          </div>
+        ))}
+      </div>
+      <div className={styles.rateGuideFoot}>
+        + ₱{ENTRANCE_FEE_PER_PERSON} entrance per player · <strong>Open daily 8AM–12AM</strong>
+      </div>
+    </div>
+  )
 }
 
-export default function BookingPage() {
+export default function ConceptDBookingPage() {
   const [date, setDate] = useState(today())
   const [viewMonth, setViewMonth] = useState(() => {
     const d = new Date()
@@ -121,48 +153,44 @@ export default function BookingPage() {
   })
   const [slots, setSlots] = useState<SlotMatrix>({})
   const [loading, setLoading] = useState(false)
-
-  const [selectedCourts, setSelectedCourts] = useState<number[]>([])
-  const [anchorH, setAnchorH] = useState<number | null>(null)
-  const [endH, setEndH] = useState<number | null>(null)
-
-  const [locking, setLocking] = useState(false)
-  const [lockError, setLockError] = useState('')
-  const [lockData, setLockData] = useState<LockResponse | null>(null)
-  const [showModal, setShowModal] = useState(false)
-  const [success, setSuccess] = useState<SuccessData | null>(null)
-
+  const [picks, setPicks] = useState<Slot[]>([])
+  const [players, setPlayers] = useState(4)
+  const [payOnsite, setPayOnsite] = useState(false)
+  const [holidays, setHolidays] = useState<Set<string>>(new Set())
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
-  const [players, setPlayers] = useState(4)
   const [playerNames, setPlayerNames] = useState<string[]>(() => Array(3).fill(''))
-  const [holidays, setHolidays] = useState<Set<string>>(new Set())
+  const [phase, setPhase] = useState<'review' | 'details'>('review')
+  const [locking, setLocking] = useState(false)
+  const [lockError, setLockError] = useState('')
+  const [lockData, setLockData] = useState<LockData | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [success, setSuccess] = useState<SuccessData | null>(null)
 
-  const phase: 'time' | 'courts' = endH === null ? 'time' : 'courts'
-  const startH: number | null =
-    anchorH === null ? null : endH === null ? null : Math.min(anchorH, endH)
-  const endHExcl: number | null =
-    endH === null ? null : Math.max(anchorH!, endH) + 1
-  const duration = endH === null ? 0 : Math.abs(endH - (anchorH ?? 0)) + 1
-  const selectedStart = startH === null ? null : toTime(startH)
-  const endTime = endHExcl === null ? null : toTime(endHExcl)
+  const formValid =
+    customerName.trim().length > 0 &&
+    customerPhone.trim().length > 0 &&
+    customerEmail.trim().length > 0
 
-  const courtFee = startH === null ? 0 : courtFeeFor(date, startH, duration, selectedCourts.length, holidays)
-  const entranceFee = players * ENTRANCE_FEE_PER_PERSON
-  const price = courtFee + entranceFee
-
-  // Keep playerNames length in sync with players count (preserves typed values).
+  // Keep playerNames length in sync with players (preserves typed values).
   useEffect(() => {
     setPlayerNames(prev => Array.from({ length: Math.max(0, players - 1) }, (_, i) => prev[i] ?? ''))
   }, [players])
 
-  const formValid =
-    selectedCourts.length > 0 &&
-    customerName.trim().length > 0 &&
-    customerPhone.trim().length > 0 &&
-    customerEmail.trim().length > 0 &&
-    players >= 1
+  // Snap back to review if all picks cleared.
+  useEffect(() => {
+    if (picks.length === 0) setPhase('review')
+  }, [picks.length])
+
+  const totalHours = picks.length
+  const courtFee = picks.reduce((sum, p) => sum + priceForHour(date, p.hour, holidays), 0)
+  const entranceFee = players * ENTRANCE_FEE_PER_PERSON
+  const onlineDue = courtFee + (payOnsite ? 0 : entranceFee)
+  const numCourts = new Set(picks.map(p => p.court)).size
+  const amHours = picks.filter(p => p.hour < 12).length
+  const pmHours = picks.filter(p => p.hour >= 12).length
+  const showAmPmBreakdown = amHours > 0 && pmHours > 0
 
   // Per-date cache + race-protection. cacheRef survives renders.
   const cacheRef = useRef<Map<string, SlotMatrix>>(new Map())
@@ -186,15 +214,13 @@ export default function BookingPage() {
     }
   }, [])
 
-  // User date change: clear selection, fetch (cache-first).
+  // User date change: clear picks, fetch (cache-first).
   useEffect(() => {
-    setSelectedCourts([])
-    setAnchorH(null)
-    setEndH(null)
+    setPicks([])
     fetchAvailability(date)
   }, [date, fetchAvailability])
 
-  // On mount: fetch holidays for current + next year (covers booking range).
+  // On mount: fetch holidays for current + next year.
   useEffect(() => {
     const thisYear = new Date().getFullYear()
     Promise.all([
@@ -217,16 +243,13 @@ export default function BookingPage() {
     }
   }, [fetchAvailability])
 
-  // Realtime: invalidate cache + background refetch (no spinner, keep selection)
   const channelRef = useRef<ReturnType<typeof getSupabase>['channel'] extends (...args: any[]) => infer R ? R : never | null>(null)
   useEffect(() => {
     const supabase = getSupabase()
     if (channelRef.current) supabase.removeChannel(channelRef.current)
-
     channelRef.current = supabase
       .channel(`bookings:${date}`)
-      .on(
-        'postgres_changes',
+      .on('postgres_changes',
         { event: '*', schema: 'public', table: 'bookings', filter: `booking_date=eq.${date}` },
         () => {
           cacheRef.current.delete(date)
@@ -234,77 +257,54 @@ export default function BookingPage() {
         }
       )
       .subscribe()
-
-    return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current)
-    }
+    return () => { if (channelRef.current) supabase.removeChannel(channelRef.current) }
   }, [date, fetchAvailability])
 
   const isSlotTaken = (court: number, time: string) =>
     !(slots[time]?.find(s => s.court === court)?.available ?? true)
 
-  // Phase 2 only — toggle add/remove a court (anchor court is permanent).
-  const handleCourtSelect = (court: number) => {
-    if (phase !== 'courts' || anchorH === null || endH === null) return
-    setLockError('')
-
-    const anchorCourt = selectedCourts[0]
-    if (court === anchorCourt) return  // anchor cannot be removed
-
-    // Removing an extra court — always allowed.
-    if (selectedCourts.includes(court)) {
-      setSelectedCourts(prev => prev.filter(c => c !== court))
-      return
-    }
-
-    // Adding a court — must be free across the full hour range.
-    const min = Math.min(anchorH, endH)
-    const max = Math.max(anchorH, endH)
-    for (let h = min; h <= max; h++) {
-      if (isSlotTaken(court, toTime(h))) {
-        setLockError(`SO${court} is booked at ${formatHour(h)}. Pick another court.`)
-        return
-      }
-    }
-    setSelectedCourts(prev => [...prev, court].sort((a, b) => a - b))
-  }
+  const isCellSelected = (court: number, hour: number) =>
+    picks.some(p => p.court === court && p.hour === hour)
 
   function handleCellClick(court: number, h: number) {
-    setLockError('')
     if (isSlotTaken(court, toTime(h))) return
-
-    // Phase 1 — first tap sets anchor and auto-selects that court.
-    if (anchorH === null) {
-      setAnchorH(h)
-      setSelectedCourts([court])
-      return
-    }
-
-    // Phase 2 — cell taps are inert. Use Reset.
-    if (endH !== null) return
-
-    // Phase 1.5 — second tap commits the range on the originally-tapped court.
-    const origCourt = selectedCourts[0]
-    const min = Math.min(anchorH, h)
-    const max = Math.max(anchorH, h)
-    for (let hh = min; hh <= max; hh++) {
-      if (isSlotTaken(origCourt, toTime(hh))) {
-        setLockError(`That range overlaps a booked slot on Court SO${origCourt}. Pick a smaller range or Reset.`)
-        return
-      }
-    }
-    setEndH(h)
+    setPicks(prev => {
+      const exists = prev.some(p => p.court === court && p.hour === h)
+      if (exists) return prev.filter(p => !(p.court === court && p.hour === h))
+      return [...prev, { court, hour: h }]
+    })
   }
 
-  function handleReset() {
-    setLockError('')
-    setAnchorH(null)
-    setEndH(null)
-    setSelectedCourts([])
+  function removeRange(court: number, start: number, end: number) {
+    setPicks(prev => prev.filter(p => !(p.court === court && p.hour >= start && p.hour <= end)))
+  }
+
+  function handleResetAll() {
+    setPicks([])
+  }
+
+  const ranges = groupRanges(picks)
+
+  // Map UI ranges (hour-int bounds, end-inclusive) → API shape (HH:MM strings, duration in hours).
+  function rangesForApi() {
+    return ranges.map(r => ({
+      court_number: r.court,
+      start_time: toTime(r.start),
+      duration: r.end - r.start + 1,
+    }))
+  }
+
+  // Map UI ranges → display shape with end-time (start of the hour after the last picked slot).
+  function rangesForDisplay() {
+    return ranges.map(r => ({
+      court_number: r.court,
+      start_time: toTime(r.start),
+      end_time: toTime(r.end + 1),
+    }))
   }
 
   async function handleLockAndPay() {
-    if (selectedCourts.length === 0 || !selectedStart || !endTime || !formValid) return
+    if (picks.length === 0 || !formValid) return
     setLocking(true)
     setLockError('')
     try {
@@ -312,21 +312,31 @@ export default function BookingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          court_numbers: selectedCourts,
+          ranges: rangesForApi(),
           booking_date: date,
-          start_time: selectedStart,
-          duration,
           players,
           customer_name: customerName.trim(),
           customer_phone: customerPhone.trim(),
           customer_email: customerEmail.trim() || undefined,
-          player_names: [customerName.trim(), ...playerNames],
+          player_names: payOnsite
+            ? [customerName.trim()]
+            : [customerName.trim(), ...playerNames.map(n => n.trim())],
+          pay_mode: payOnsite ? 'onsite_entrance' : 'online',
         }),
       })
       const data = await res.json()
-      if (!res.ok) { setLockError(data.error || 'Could not lock slot. Try again.'); return }
+      if (!res.ok) {
+        setLockError(data.error || 'Could not lock slot. Try again.')
+        if (res.status === 409) {
+          cacheRef.current.delete(date)
+          fetchAvailability(date)
+        }
+        return
+      }
       setLockData({ reference: data.reference, lockedUntil: data.locked_until, courtNumbers: data.court_numbers })
       setShowModal(true)
+    } catch {
+      setLockError('Network error. Please try again.')
     } finally {
       setLocking(false)
     }
@@ -334,30 +344,33 @@ export default function BookingPage() {
 
   function handleExpire() {
     setShowModal(false); setLockData(null)
-    setSelectedCourts([]); setAnchorH(null); setEndH(null)
+    setPicks([])
     cacheRef.current.delete(date)
     fetchAvailability(date)
-    setLockError('Your 5-minute hold expired. Please select a slot again.')
+    setLockError('Your 5-minute hold expired. Please select again.')
   }
 
   function handleSuccess(reference: string) {
+    if (!lockData) return
     setShowModal(false)
     setSuccess({
       reference,
-      courtNumbers: [...selectedCourts],
+      ranges: rangesForDisplay(),
       bookingDate: date,
-      startTime: selectedStart!,
-      endTime: endTime!,
-      duration,
-      price,
+      price: onlineDue,
       players,
       customerName,
       customerPhone,
       customerEmail: customerEmail.trim() || undefined,
+      payOnsite,
+      entranceFee,
     })
-    setSelectedCourts([]); setAnchorH(null); setEndH(null)
-    setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4)
+    setPicks([])
+    setCustomerName(''); setCustomerPhone(''); setCustomerEmail('')
     setPlayerNames(Array(3).fill(''))
+    setPlayers(4)
+    setPayOnsite(false)
+    setLockData(null)
     cacheRef.current.delete(date)
     fetchAvailability(date)
   }
@@ -370,7 +383,11 @@ export default function BookingPage() {
           <div className={styles.successCard}>
             <div className={styles.successIcon}>✓</div>
             <div className={styles.successTitle}>Booking Confirmed!</div>
-            <div className={styles.successSub}>See you on the court. Check your phone for confirmation.</div>
+            <div className={styles.successSub}>
+              {success.payOnsite
+                ? `See you at the front desk — ₱${success.entranceFee.toLocaleString()} entrance due in cash on arrival.`
+                : 'See you on the court. Check your email for the QR gate passes.'}
+            </div>
             <div className={styles.bookerSuccessBlock}>
               <div className={styles.bookerSuccessLabel}>Booker</div>
               <div className={styles.bookerSuccessName}>{success.customerName}</div>
@@ -380,11 +397,23 @@ export default function BookingPage() {
             </div>
             <div className={styles.successSummary}>
               <div className={styles.sRow}><span>Ref #</span><span className={styles.green}>{success.reference}</span></div>
-              <div className={styles.sRow}><span>{success.courtNumbers.length > 1 ? 'Courts' : 'Court'}</span><span>{success.courtNumbers.map(n => `Court ${n}`).join(', ')}</span></div>
               <div className={styles.sRow}><span>Date</span><span>{success.bookingDate}</span></div>
-              <div className={styles.sRow}><span>Time</span><span>{formatTime(success.startTime)} — {formatTime(success.endTime)}</span></div>
-              <div className={styles.sRow}><span>Duration</span><span>{success.duration}h</span></div>
-              <div className={styles.sRow}><span>Amount Due</span><span className={styles.green}>₱{success.price.toLocaleString()}</span></div>
+              {success.ranges.map((r, i) => (
+                <div key={i} className={styles.sRow}>
+                  <span>Court {r.court_number}</span>
+                  <span>{formatTime(r.start_time)} — {formatTime(r.end_time)}</span>
+                </div>
+              ))}
+              <div className={styles.sRow}>
+                <span>{success.payOnsite ? 'Paid online' : 'Amount Paid'}</span>
+                <span className={styles.green}>₱{success.price.toLocaleString()}</span>
+              </div>
+              {success.payOnsite && (
+                <div className={styles.sRow}>
+                  <span>Cash at desk</span>
+                  <span>₱{success.entranceFee.toLocaleString()}</span>
+                </div>
+              )}
             </div>
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
               <button className="btn-primary" style={{ clipPath: 'none' }} onClick={() => setSuccess(null)}>Book Another</button>
@@ -403,15 +432,18 @@ export default function BookingPage() {
         <div className={styles.header}>
           <div className={styles.headerTop}>
             <Link href="/" className={styles.back}>← Back</Link>
-            <div className={styles.headerRight}>
-              <TourButton storageKey="pickball:tour:a:seen" steps={TOUR_A_STEPS} className={styles.tourBtn} />
-            </div>
           </div>
-          <div className={styles.pageLabel}>— Play Pickleball</div>
-          <div className={styles.pageTitle}>Book a Court</div>
+          <div className={styles.pageLabel}>— Concept D · UI Preview Only</div>
+          <div className={styles.pageTitle}>Independent Multi-Slot</div>
+          {phase === 'review' && (
+            <p style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 13, maxWidth: 720 }}>
+              Tap any green cell to add a 1-hour slot. Tap again to remove it. Adjacent slots on the same court merge into a single range. <strong>Preview only — no booking lands.</strong>
+            </p>
+          )}
         </div>
 
-        {/* DATE */}
+        {/* DATE — Phase 1 only */}
+        {phase === 'review' && (
         <div className={styles.datePicker} data-tour="date">
           <div className={styles.dateHeader}>
             <label className="field-label">Select Date</label>
@@ -429,37 +461,30 @@ export default function BookingPage() {
             return (
               <>
                 <div className={styles.monthHeader}>
-                  <button
-                    type="button"
-                    className={styles.monthNav}
+                  <button type="button" className={styles.monthNav}
                     onClick={() => setViewMonth(v => v.m === 0 ? { y: v.y - 1, m: 11 } : { y: v.y, m: v.m - 1 })}
-                    disabled={isCurrentViewMonth}
-                    aria-label="Previous month"
-                  >‹</button>
+                    disabled={isCurrentViewMonth} aria-label="Previous month">‹</button>
                   <div className={styles.monthLabel}>{MONTHS_FULL[viewMonth.m]} {viewMonth.y}</div>
-                  <button
-                    type="button"
-                    className={styles.monthNav}
+                  <button type="button" className={styles.monthNav}
                     onClick={() => setViewMonth(v => v.m === 11 ? { y: v.y + 1, m: 0 } : { y: v.y, m: v.m + 1 })}
-                    disabled={!canGoNext}
-                    aria-label="Next month"
-                  >›</button>
+                    disabled={!canGoNext} aria-label="Next month">›</button>
                 </div>
                 <div className={styles.weekStrip}>
                   {days.map(d => {
-                    const disabled = d.iso < todayISO || d.iso > maxISO
-                    const selected = d.iso === date
+                    const past = d.iso < todayISO
+                    const future = d.iso > maxISO
+                    const disabled = past || future
+                    const cls = [
+                      styles.dayCard,
+                      d.iso === date ? styles.dayCardSelected : '',
+                      d.isToday ? styles.dayCardToday : '',
+                      disabled ? styles.dayCardDisabled : '',
+                    ].filter(Boolean).join(' ')
                     return (
-                      <button
-                        key={d.iso}
-                        type="button"
-                        className={`${styles.dayCard} ${selected ? styles.dayCardSelected : ''} ${disabled ? styles.dayCardDisabled : ''}`}
-                        disabled={disabled}
-                        onClick={() => setDate(d.iso)}
-                      >
-                        <span className={styles.dayDow}>{d.isToday ? 'Today' : d.dow}</span>
+                      <button key={d.iso} type="button" className={cls}
+                        onClick={() => !disabled && setDate(d.iso)} disabled={disabled}>
+                        <span className={styles.dayDow}>{d.isToday ? 'TODAY' : d.dow.toUpperCase()}</span>
                         <span className={styles.dayNum}>{d.day}</span>
-                        <span className={styles.dayMon}>{MON[viewMonth.m]}</span>
                       </button>
                     )
                   })}
@@ -468,190 +493,306 @@ export default function BookingPage() {
             )
           })()}
         </div>
+        )}
 
-        {/* LEGEND */}
-        <div className={styles.legend}>
-          <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotGreen}`} />Available</div>
-          <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotYellow}`} />Limited</div>
-          <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotRed}`} />Fully Booked</div>
-        </div>
+        {/* RATE GUIDE — Phase 1 only */}
+        {phase === 'review' && <RateGuide date={date} holidays={holidays} />}
 
-        {/* STEP 1 — COURT × HOUR MATRIX */}
+        {/* MATRIX — Phase 1 only */}
+        {phase === 'review' && (
         <div className={styles.matrixSection}>
           <div className={styles.sectionHead}>
-            <div className={styles.sectionLabel}>01 — Pick Court & Time</div>
+            <div className={styles.sectionLabel}>01 — Pick Court & Time (1 tap = 1 hour)</div>
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
-          <div className={styles.matrixHint}>
-            {anchorH === null && (
-              <span>01a — Tap a green cell to pick your court &amp; start time.</span>
-            )}
-            {anchorH !== null && endH === null && (
-              <>
-                <span className={styles.hintGreen}>01a — Court SO{selectedCourts[0]} · {formatHour(anchorH)} anchor</span>
-                {' · '}tap a second cell to set the end time.
-              </>
-            )}
-            {endH !== null && (
-              <>
-                <span className={styles.hintGreen}>01b — {selectedCourts.length > 1 ? `Courts ${selectedCourts.map(c => `SO${c}`).join(', ')}` : `Court SO${selectedCourts[0]}`} · {formatTime(selectedStart!)} — {formatTime(endTime!)}</span>
-                {' · '}{duration}h · ₱{courtFee.toLocaleString()} · tap a header (SO1–SO10) to add courts for tournaments.
-              </>
+          <div className={styles.matrixHint} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              {picks.length === 0 && (
+                <span>Tap any green cell to add a 1-hour slot. Tap a selected cell to remove it.</span>
+              )}
+              {picks.length > 0 && (
+                <>
+                  <span className={styles.hintGreen}>{picks.length} {picks.length === 1 ? 'slot' : 'slots'} · {ranges.length} {ranges.length === 1 ? 'range' : 'ranges'}</span>
+                  {' · '}{totalHours}h total · ₱{courtFee.toLocaleString()} court fee
+                </>
+              )}
+            </div>
+            {picks.length > 0 && (
+              <button type="button" className={styles.resetLink} onClick={handleResetAll} aria-label="Reset all selections">
+                Reset All
+              </button>
             )}
           </div>
           <CourtHourMatrix
             courts={Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)}
             hours={Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i)}
-            selectedCourts={selectedCourts}
-            anchorH={anchorH}
-            startH={startH}
-            endH={endHExcl}
-            phase={phase}
             isCellBooked={(c, h) => isSlotTaken(c, toTime(h))}
-            isCellHeld={() => false}
-            onToggleCourt={handleCourtSelect}
+            isCellSelected={isCellSelected}
             onCellClick={handleCellClick}
             formatHour={formatHour}
             getRowStatus={(h) => getTimeStatus(toTime(h), slots)}
           />
-          {anchorH !== null && (
-            <button
-              type="button"
-              className={styles.resetLink}
-              onClick={handleReset}
-              aria-label="Reset selection"
-            >
-              Reset
-            </button>
-          )}
         </div>
+        )}
 
-        {/* STEP 3 — DETAILS (phase 2 only) */}
-        {phase === 'courts' && selectedCourts.length > 0 && selectedStart && (
+        {/* SELECTIONS LIST — both phases; read-only in details */}
+        {ranges.length > 0 && (
           <div className={styles.detailsSection}>
-            <div className={styles.sectionLabel}>03 — Your Details</div>
-            <p className={styles.detailsNote}>
-              Each player gets a QR gate pass for check-in. Add names now — they&apos;re optional but help at the gate.
-            </p>
-            <div className={styles.detailsGrid}>
-              <div className={styles.field}>
-                <label className="field-label">Full Name *</label>
-                <input
-                  className="field-input"
-                  value={customerName}
-                  onChange={e => setCustomerName(e.target.value)}
-                  placeholder="Juan dela Cruz"
-                />
-              </div>
-              <div className={styles.field}>
-                <label className="field-label">Phone Number *</label>
-                <input
-                  className="field-input"
-                  type="tel"
-                  value={customerPhone}
-                  onChange={e => setCustomerPhone(e.target.value)}
-                  placeholder="+63 9XX XXX XXXX"
-                />
-              </div>
-              <div className={styles.field}>
-                <label className="field-label">Email *</label>
-                <input
-                  className="field-input"
-                  type="email"
-                  value={customerEmail}
-                  onChange={e => setCustomerEmail(e.target.value)}
-                  placeholder="juan@email.com"
-                />
-              </div>
-              <div className={styles.field} data-tour="players">
-                <label className="field-label">Players (₱{ENTRANCE_FEE_PER_PERSON} entrance / head)</label>
-                <div className={styles.stepper}>
-                  <button
-                    type="button"
-                    className={styles.stepperBtn}
-                    onClick={() => setPlayers(p => Math.max(1, p - 1))}
-                    disabled={players <= 1}
-                    aria-label="Decrease players"
-                  >–</button>
-                  <span className={styles.stepperValue}>{players}</span>
-                  <button
-                    type="button"
-                    className={styles.stepperBtn}
-                    onClick={() => setPlayers(p => Math.min(20, p + 1))}
-                    disabled={players >= 20}
-                    aria-label="Increase players"
-                  >+</button>
-                </div>
-              </div>
+            <div className={styles.sectionLabel}>
+              {phase === 'review'
+                ? '02 — Your Selections'
+                : `02 — Booking for ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
             </div>
-
-            {/* Player names — slot 0 mirrors booker, slots 1..N-1 editable */}
-            <div className={styles.playerNamesSection}>
-              <div className={styles.playerNamesLabel}>Player Names (optional)</div>
-              <div className={styles.playerNameRow}>
-                <span className={styles.playerIdx}>1</span>
-                <input className="field-input" value={customerName || '—'} readOnly
-                  style={{ opacity: 0.55, cursor: 'not-allowed', flex: 1 }} />
-                <span className={styles.youBadge}>YOU</span>
-              </div>
-              {playerNames.map((name, i) => (
-                <div key={i} className={styles.playerNameRow}>
-                  <span className={styles.playerIdx}>{i + 2}</span>
-                  <input
-                    className="field-input"
-                    style={{ flex: 1 }}
-                    value={name}
-                    onChange={e => setPlayerNames(prev => prev.map((n, j) => j === i ? e.target.value : n))}
-                    placeholder={`Player ${i + 2} name (optional)`}
-                  />
-                </div>
-              ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              {ranges.map(r => {
+                const hours = r.end - r.start + 1
+                let fee = 0
+                for (let h = r.start; h <= r.end; h++) fee += priceForHour(date, h, holidays)
+                const key = `${r.court}-${r.start}-${r.end}`
+                return (
+                  <div key={key} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 16px', background: 'var(--dark2)',
+                    border: '1px solid rgba(34,197,94,0.4)',
+                    fontFamily: 'var(--font-barlow-condensed), sans-serif',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--green)', letterSpacing: 1 }}>SO{r.court}</span>
+                      <span style={{ fontSize: 14, color: 'var(--text-light)' }}>
+                        {formatTime(toTime(r.start))} — {formatTime(toTime(r.end + 1))} · {hours}h · ₱{fee.toLocaleString()}
+                      </span>
+                    </div>
+                    {phase === 'review' && (
+                      <button type="button" onClick={() => removeRange(r.court, r.start, r.end)} aria-label={`Remove SO${r.court} ${formatHour(r.start)}`}
+                        style={{
+                          background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
+                          color: 'rgba(239,68,68,0.9)', fontFamily: 'inherit', fontSize: 11,
+                          letterSpacing: 1, padding: '6px 12px', cursor: 'pointer',
+                        }}>
+                        × REMOVE
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
 
-        {/* CONFIRM (phase 2 only) */}
-        {phase === 'courts' && selectedCourts.length > 0 && selectedStart && (
+        {/* DETAILS — only after Continue */}
+        {phase === 'details' && picks.length > 0 && (
+          <div className={styles.detailsSection}>
+            <button type="button" className={styles.backLink} onClick={() => setPhase('review')}>
+              ← Back to selection
+            </button>
+            <div className={styles.sectionLabel}>03 — Your Details</div>
+
+            {!payOnsite && (
+              <>
+                <div className={styles.playersHeader}>
+                  <div>
+                    <div className={styles.playersHeaderTitle}>You picked {players} {players === 1 ? 'player' : 'players'}</div>
+                    <div className={styles.playersHeaderHint}>Each player gets a QR gate pass · ₱{ENTRANCE_FEE_PER_PERSON}/head</div>
+                  </div>
+                  <div className={styles.stepper}>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.max(1, p - 1))}
+                      disabled={players <= 1} aria-label="Decrease players">–</button>
+                    <span className={styles.stepperValue}>{players}</span>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.min(20, p + 1))}
+                      disabled={players >= 20} aria-label="Increase players">+</button>
+                  </div>
+                </div>
+
+                {/* Player 1 — booker (name + phone + email) */}
+                <div className={`${styles.playerCard} ${styles.playerCardBooker}`}>
+                  <div className={styles.playerCardHead}>
+                    <span className={styles.playerCardNum}>1</span>
+                    <span className={styles.playerCardLabel}>Main Booker</span>
+                    <span className={styles.youBadge}>YOU</span>
+                  </div>
+                  <div className={styles.playerCardFields}>
+                    <div className={styles.field}>
+                      <label className="field-label">Full Name *</label>
+                      <input className="field-input" value={customerName}
+                        onChange={e => setCustomerName(e.target.value)} placeholder="Juan dela Cruz" />
+                    </div>
+                    <div className={styles.fieldRow}>
+                      <div className={styles.field}>
+                        <label className="field-label">Phone *</label>
+                        <input className="field-input" type="tel" value={customerPhone}
+                          onChange={e => setCustomerPhone(e.target.value)} placeholder="+63 9XX XXX XXXX" />
+                      </div>
+                      <div className={styles.field}>
+                        <label className="field-label">Email *</label>
+                        <input className="field-input" type="email" value={customerEmail}
+                          onChange={e => setCustomerEmail(e.target.value)} placeholder="juan@email.com" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Players 2..N — name only */}
+                {playerNames.map((name, i) => (
+                  <div key={i} className={styles.playerCard}>
+                    <div className={styles.playerCardHead}>
+                      <span className={styles.playerCardNum}>{i + 2}</span>
+                      <span className={styles.playerCardLabel}>Player {i + 2}</span>
+                    </div>
+                    <div className={styles.playerCardFields}>
+                      <div className={styles.field}>
+                        <label className="field-label">Name (optional)</label>
+                        <input className="field-input" value={name}
+                          onChange={e => setPlayerNames(prev => prev.map((n, j) => j === i ? e.target.value : n))}
+                          placeholder={`Player ${i + 2} name`} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {payOnsite && (
+              <>
+                <div className={`${styles.playerCard} ${styles.playerCardBooker}`}>
+                  <div className={styles.playerCardHead}>
+                    <span className={styles.playerCardLabel}>Main Booker</span>
+                  </div>
+                  <div className={styles.playerCardFields}>
+                    <div className={styles.field}>
+                      <label className="field-label">Full Name *</label>
+                      <input className="field-input" value={customerName}
+                        onChange={e => setCustomerName(e.target.value)} placeholder="Juan dela Cruz" />
+                    </div>
+                    <div className={styles.field}>
+                      <label className="field-label">Email *</label>
+                      <input className="field-input" type="email" value={customerEmail}
+                        onChange={e => setCustomerEmail(e.target.value)} placeholder="juan@email.com" />
+                    </div>
+                    <div className={styles.field}>
+                      <label className="field-label">Phone *</label>
+                      <input className="field-input" type="tel" value={customerPhone}
+                        onChange={e => setCustomerPhone(e.target.value)} placeholder="+63 9XX XXX XXXX" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.playersHeader} style={{ marginTop: 14 }}>
+                  <div>
+                    <div className={styles.playersHeaderTitle}>How many players?</div>
+                    <div className={styles.playersHeaderHint}>₱{ENTRANCE_FEE_PER_PERSON}/head — cash on arrival at the front desk</div>
+                  </div>
+                  <div className={styles.stepper}>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.max(1, p - 1))}
+                      disabled={players <= 1} aria-label="Decrease players">–</button>
+                    <span className={styles.stepperValue}>{players}</span>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.min(20, p + 1))}
+                      disabled={players >= 20} aria-label="Increase players">+</button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* PRICE PANEL */}
+        {picks.length > 0 && (
           <div className={styles.confirmPanel} data-tour="confirm">
             <div className={styles.confirmDetails}>
-              <div className={styles.confirmItem}><div className={styles.confirmVal}>{selectedCourts.length === 1 ? `Court ${selectedCourts[0]}` : `Courts ${selectedCourts.join(', ')}`}</div><div className={styles.confirmKey}>{selectedCourts.length === 1 ? 'Court' : `${selectedCourts.length} Courts`}</div></div>
-              <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(selectedStart)}</div><div className={styles.confirmKey}>Start</div></div>
-              <div className={styles.confirmItem}><div className={styles.confirmVal}>{formatTime(endTime!)}</div><div className={styles.confirmKey}>End</div></div>
-              <div className={styles.confirmItem}><div className={styles.confirmVal}>{duration}h</div><div className={styles.confirmKey}>Duration</div></div>
-              <div className={styles.confirmItem}><div className={styles.confirmVal}>{players}</div><div className={styles.confirmKey}>Players</div></div>
+              <div className={styles.confirmItem}>
+                <div className={styles.confirmVal}>{numCourts}</div>
+                <div className={styles.confirmKey}>{numCourts === 1 ? 'Court' : 'Courts'}</div>
+              </div>
+              {showAmPmBreakdown ? (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div className={styles.confirmItem}>
+                    <div className={styles.confirmVal}>{amHours}h</div>
+                    <div className={styles.confirmKey}>Morning</div>
+                  </div>
+                  <span style={{ fontSize: 22, color: 'rgba(255,255,255,0.35)', fontWeight: 300, paddingTop: 6, alignSelf: 'flex-start' }}>+</span>
+                  <div className={styles.confirmItem}>
+                    <div className={styles.confirmVal}>{pmHours}h</div>
+                    <div className={styles.confirmKey}>Evening</div>
+                  </div>
+                </div>
+              ) : (
+                <div className={styles.confirmItem}>
+                  <div className={styles.confirmVal}>{totalHours}h</div>
+                  <div className={styles.confirmKey}>{amHours > 0 ? 'Morning' : 'Evening'}</div>
+                </div>
+              )}
             </div>
             <div className={styles.confirmRight}>
               <div className={styles.priceBreakdown}>
                 <span>Court ₱{courtFee.toLocaleString()}</span>
-                <span>+ Entrance ₱{entranceFee.toLocaleString()}</span>
+                <span>{payOnsite ? '·' : '+'} Entrance ₱{entranceFee.toLocaleString()}{payOnsite ? ' (onsite)' : ''}</span>
               </div>
-              <div className={styles.confirmPrice}>₱{price.toLocaleString()} <span>total</span></div>
-              {lockError && <div className={styles.lockError}>{lockError}</div>}
-              <button className="btn-primary" onClick={handleLockAndPay} disabled={locking || !formValid} style={{ fontSize: 14, padding: '14px 28px' }}>
-                {locking ? 'Locking slot…' : !formValid ? 'Fill in your details' : 'Confirm & Pay — 5 min hold'}
-              </button>
+              {phase === 'review' && (
+                <button
+                  type="button"
+                  className={`${styles.payModeToggle} ${payOnsite ? styles.payModeToggleActive : ''}`}
+                  onClick={() => setPayOnsite(v => !v)}
+                  aria-pressed={payOnsite}
+                  aria-label="Toggle pay entrance onsite"
+                >
+                  <span className={styles.payModeSwitch} />
+                  Pay entrance at front desk
+                </button>
+              )}
+              <div className={styles.confirmPrice}>₱{onlineDue.toLocaleString()} <span>{payOnsite ? 'due online' : 'preview'}</span></div>
+              {payOnsite && (
+                <div className={styles.onsiteDueLine}>+ ₱{entranceFee.toLocaleString()} cash on arrival</div>
+              )}
+              {phase === 'review' ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setPhase('details')}
+                  style={{ fontSize: 14, padding: '14px 28px' }}
+                >
+                  Continue →
+                </button>
+              ) : (
+                <>
+                  {lockError && <div className={styles.lockError}>{lockError}</div>}
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleLockAndPay}
+                    disabled={locking || !formValid}
+                    style={{ fontSize: 14, padding: '14px 28px' }}
+                  >
+                    {locking ? 'Locking slot…' : !formValid ? 'Fill in your details' : 'Confirm & Pay — 5 min hold'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
       </div>
 
-      {showModal && lockData && selectedStart && endTime && (
+      {showModal && lockData && (
         <BookingModal
           details={{
             reference: lockData.reference,
             lockedUntil: lockData.lockedUntil,
             courtNumbers: lockData.courtNumbers,
             bookingDate: date,
-            startTime: selectedStart,
-            endTime: endTime,
-            duration,
+            startTime: '',
+            endTime: '',
+            duration: totalHours,
             players,
-            price,
+            price: onlineDue,
             courtFee,
             entranceFee,
             customerName,
             customerPhone,
             customerEmail: customerEmail.trim() || undefined,
+            ranges: rangesForDisplay(),
+            payOnsite,
           }}
           onSuccess={handleSuccess}
           onExpire={handleExpire}

@@ -84,7 +84,6 @@ export default function TesterPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <Link href="/" className="btn-primary" style={{ clipPath: 'none', textAlign: 'center' }}>Go to homepage</Link>
             <Link href="/booking" className="btn-outline" style={{ clipPath: 'none', textAlign: 'center' }}>Go to /booking</Link>
-            <Link href="/concept-b/booking" className="btn-outline" style={{ clipPath: 'none', textAlign: 'center' }}>Go to /concept-b/booking</Link>
             <button onClick={leave} className="btn-outline" style={{ clipPath: 'none', marginTop: 6, color: 'var(--text-muted)' }}>Exit tester mode</button>
           </div>
         )}
