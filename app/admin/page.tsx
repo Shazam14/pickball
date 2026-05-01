@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import styles from './admin.module.css'
 
 interface Booking {
@@ -151,6 +152,21 @@ export default function AdminPage() {
           <button className={styles.refreshBtn} onClick={() => fetchBookings(key)}>↻ Refresh</button>
           <button className={styles.logoutBtn} onClick={() => { setAuthed(false); setKey('') }}>Logout</button>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, margin: '0 0 16px', flexWrap: 'wrap' }}>
+        <Link href="/admin/payment-demo" style={{
+          fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none',
+          padding: '6px 10px', border: '1px solid #1f2937', color: '#9ca3af', background: '#0a0a0a',
+        }}>
+          ↗ Payment Auto-Confirm Demo
+        </Link>
+        <Link href="/admin/checkin-demo" style={{
+          fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none',
+          padding: '6px 10px', border: '1px solid #1f2937', color: '#9ca3af', background: '#0a0a0a',
+        }}>
+          ↗ QR Check-In Test
+        </Link>
       </div>
 
       <div className={styles.tabs}>
