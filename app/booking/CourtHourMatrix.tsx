@@ -32,7 +32,7 @@ export default function CourtHourMatrix({
           <tr>
             <th className={styles.matrixTimeHeader}>TIME</th>
             {courts.map(c => (
-              <th key={c} scope="col" className={`${styles.matrixCourtHeader} ${styles.matrixCourtHeaderPassive}`}>SO{c}</th>
+              <th key={c} scope="col" className={`${styles.matrixCourtHeader} ${styles.matrixCourtHeaderPassive}`}>COURT {c}</th>
             ))}
           </tr>
         </thead>
