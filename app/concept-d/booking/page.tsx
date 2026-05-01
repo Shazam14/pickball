@@ -142,6 +142,21 @@ export default function ConceptDBookingPage() {
   const [players, setPlayers] = useState(4)
   const [payOnsite, setPayOnsite] = useState(false)
   const [holidays, setHolidays] = useState<Set<string>>(new Set())
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
+  const [playerNames, setPlayerNames] = useState<string[]>(() => Array(3).fill(''))
+  const [phase, setPhase] = useState<'review' | 'details'>('review')
+
+  // Keep playerNames length in sync with players (preserves typed values).
+  useEffect(() => {
+    setPlayerNames(prev => Array.from({ length: Math.max(0, players - 1) }, (_, i) => prev[i] ?? ''))
+  }, [players])
+
+  // Snap back to review if all picks cleared.
+  useEffect(() => {
+    if (picks.length === 0) setPhase('review')
+  }, [picks.length])
 
   const totalHours = picks.length
   const courtFee = picks.reduce((sum, p) => sum + priceForHour(date, p.hour, holidays), 0)
@@ -255,12 +270,15 @@ export default function ConceptDBookingPage() {
           </div>
           <div className={styles.pageLabel}>— Concept D · UI Preview Only</div>
           <div className={styles.pageTitle}>Independent Multi-Slot</div>
-          <p style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 13, maxWidth: 720 }}>
-            Tap any green cell to add a 1-hour slot. Tap again to remove it. Adjacent slots on the same court merge into a single range. <strong>Preview only — no booking lands.</strong>
-          </p>
+          {phase === 'review' && (
+            <p style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 13, maxWidth: 720 }}>
+              Tap any green cell to add a 1-hour slot. Tap again to remove it. Adjacent slots on the same court merge into a single range. <strong>Preview only — no booking lands.</strong>
+            </p>
+          )}
         </div>
 
-        {/* DATE */}
+        {/* DATE — Phase 1 only */}
+        {phase === 'review' && (
         <div className={styles.datePicker} data-tour="date">
           <div className={styles.dateHeader}>
             <label className="field-label">Select Date</label>
@@ -310,11 +328,13 @@ export default function ConceptDBookingPage() {
             )
           })()}
         </div>
+        )}
 
-        {/* RATE GUIDE */}
-        <RateGuide date={date} holidays={holidays} />
+        {/* RATE GUIDE — Phase 1 only */}
+        {phase === 'review' && <RateGuide date={date} holidays={holidays} />}
 
-        {/* MATRIX */}
+        {/* MATRIX — Phase 1 only */}
+        {phase === 'review' && (
         <div className={styles.matrixSection}>
           <div className={styles.sectionHead}>
             <div className={styles.sectionLabel}>01 — Pick Court & Time (1 tap = 1 hour)</div>
@@ -348,11 +368,16 @@ export default function ConceptDBookingPage() {
             getRowStatus={(h) => getTimeStatus(toTime(h), slots)}
           />
         </div>
+        )}
 
-        {/* SELECTIONS LIST */}
+        {/* SELECTIONS LIST — both phases; read-only in details */}
         {ranges.length > 0 && (
           <div className={styles.detailsSection}>
-            <div className={styles.sectionLabel}>02 — Your Selections</div>
+            <div className={styles.sectionLabel}>
+              {phase === 'review'
+                ? '02 — Your Selections'
+                : `02 — Booking for ${new Date(date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}`}
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               {ranges.map(r => {
                 const hours = r.end - r.start + 1
@@ -372,14 +397,16 @@ export default function ConceptDBookingPage() {
                         {formatTime(toTime(r.start))} — {formatTime(toTime(r.end + 1))} · {hours}h · ₱{fee.toLocaleString()}
                       </span>
                     </div>
-                    <button type="button" onClick={() => removeRange(r.court, r.start, r.end)} aria-label={`Remove SO${r.court} ${formatHour(r.start)}`}
-                      style={{
-                        background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
-                        color: 'rgba(239,68,68,0.9)', fontFamily: 'inherit', fontSize: 11,
-                        letterSpacing: 1, padding: '6px 12px', cursor: 'pointer',
-                      }}>
-                      × REMOVE
-                    </button>
+                    {phase === 'review' && (
+                      <button type="button" onClick={() => removeRange(r.court, r.start, r.end)} aria-label={`Remove SO${r.court} ${formatHour(r.start)}`}
+                        style={{
+                          background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
+                          color: 'rgba(239,68,68,0.9)', fontFamily: 'inherit', fontSize: 11,
+                          letterSpacing: 1, padding: '6px 12px', cursor: 'pointer',
+                        }}>
+                        × REMOVE
+                      </button>
+                    )}
                   </div>
                 )
               })}
@@ -387,22 +414,122 @@ export default function ConceptDBookingPage() {
           </div>
         )}
 
-        {/* DETAILS — players stepper (Step 3 will expand: name/phone/email/player names) */}
-        {picks.length > 0 && (
+        {/* DETAILS — only after Continue */}
+        {phase === 'details' && picks.length > 0 && (
           <div className={styles.detailsSection}>
+            <button type="button" className={styles.backLink} onClick={() => setPhase('review')}>
+              ← Back to selection
+            </button>
             <div className={styles.sectionLabel}>03 — Your Details</div>
-            <div className={styles.field} data-tour="players" style={{ minWidth: 140, maxWidth: 240, marginTop: 12 }}>
-              <label className="field-label">Players {payOnsite ? `(₱${ENTRANCE_FEE_PER_PERSON} cash on arrival)` : `(₱${ENTRANCE_FEE_PER_PERSON} / head)`}</label>
-              <div className={styles.stepper}>
-                <button type="button" className={styles.stepperBtn}
-                  onClick={() => setPlayers(p => Math.max(1, p - 1))}
-                  disabled={players <= 1} aria-label="Decrease players">–</button>
-                <span className={styles.stepperValue}>{players}</span>
-                <button type="button" className={styles.stepperBtn}
-                  onClick={() => setPlayers(p => Math.min(20, p + 1))}
-                  disabled={players >= 20} aria-label="Increase players">+</button>
-              </div>
-            </div>
+
+            {!payOnsite && (
+              <>
+                <div className={styles.playersHeader}>
+                  <div>
+                    <div className={styles.playersHeaderTitle}>You picked {players} {players === 1 ? 'player' : 'players'}</div>
+                    <div className={styles.playersHeaderHint}>Each player gets a QR gate pass · ₱{ENTRANCE_FEE_PER_PERSON}/head</div>
+                  </div>
+                  <div className={styles.stepper}>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.max(1, p - 1))}
+                      disabled={players <= 1} aria-label="Decrease players">–</button>
+                    <span className={styles.stepperValue}>{players}</span>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.min(20, p + 1))}
+                      disabled={players >= 20} aria-label="Increase players">+</button>
+                  </div>
+                </div>
+
+                {/* Player 1 — booker (name + phone + email) */}
+                <div className={`${styles.playerCard} ${styles.playerCardBooker}`}>
+                  <div className={styles.playerCardHead}>
+                    <span className={styles.playerCardNum}>1</span>
+                    <span className={styles.playerCardLabel}>Main Booker</span>
+                    <span className={styles.youBadge}>YOU</span>
+                  </div>
+                  <div className={styles.playerCardFields}>
+                    <div className={styles.field}>
+                      <label className="field-label">Full Name *</label>
+                      <input className="field-input" value={customerName}
+                        onChange={e => setCustomerName(e.target.value)} placeholder="Juan dela Cruz" />
+                    </div>
+                    <div className={styles.fieldRow}>
+                      <div className={styles.field}>
+                        <label className="field-label">Phone *</label>
+                        <input className="field-input" type="tel" value={customerPhone}
+                          onChange={e => setCustomerPhone(e.target.value)} placeholder="+63 9XX XXX XXXX" />
+                      </div>
+                      <div className={styles.field}>
+                        <label className="field-label">Email *</label>
+                        <input className="field-input" type="email" value={customerEmail}
+                          onChange={e => setCustomerEmail(e.target.value)} placeholder="juan@email.com" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Players 2..N — name only */}
+                {playerNames.map((name, i) => (
+                  <div key={i} className={styles.playerCard}>
+                    <div className={styles.playerCardHead}>
+                      <span className={styles.playerCardNum}>{i + 2}</span>
+                      <span className={styles.playerCardLabel}>Player {i + 2}</span>
+                    </div>
+                    <div className={styles.playerCardFields}>
+                      <div className={styles.field}>
+                        <label className="field-label">Name (optional)</label>
+                        <input className="field-input" value={name}
+                          onChange={e => setPlayerNames(prev => prev.map((n, j) => j === i ? e.target.value : n))}
+                          placeholder={`Player ${i + 2} name`} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+
+            {payOnsite && (
+              <>
+                <div className={`${styles.playerCard} ${styles.playerCardBooker}`}>
+                  <div className={styles.playerCardHead}>
+                    <span className={styles.playerCardLabel}>Main Booker</span>
+                  </div>
+                  <div className={styles.playerCardFields}>
+                    <div className={styles.field}>
+                      <label className="field-label">Full Name *</label>
+                      <input className="field-input" value={customerName}
+                        onChange={e => setCustomerName(e.target.value)} placeholder="Juan dela Cruz" />
+                    </div>
+                    <div className={styles.field}>
+                      <label className="field-label">Email *</label>
+                      <input className="field-input" type="email" value={customerEmail}
+                        onChange={e => setCustomerEmail(e.target.value)} placeholder="juan@email.com" />
+                    </div>
+                    <div className={styles.field}>
+                      <label className="field-label">Phone *</label>
+                      <input className="field-input" type="tel" value={customerPhone}
+                        onChange={e => setCustomerPhone(e.target.value)} placeholder="+63 9XX XXX XXXX" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.playersHeader} style={{ marginTop: 14 }}>
+                  <div>
+                    <div className={styles.playersHeaderTitle}>How many players?</div>
+                    <div className={styles.playersHeaderHint}>₱{ENTRANCE_FEE_PER_PERSON}/head — cash on arrival at the front desk</div>
+                  </div>
+                  <div className={styles.stepper}>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.max(1, p - 1))}
+                      disabled={players <= 1} aria-label="Decrease players">–</button>
+                    <span className={styles.stepperValue}>{players}</span>
+                    <button type="button" className={styles.stepperBtn}
+                      onClick={() => setPlayers(p => Math.min(20, p + 1))}
+                      disabled={players >= 20} aria-label="Increase players">+</button>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         )}
 
@@ -432,35 +559,42 @@ export default function ConceptDBookingPage() {
                   <div className={styles.confirmKey}>{amHours > 0 ? 'Morning' : 'Evening'}</div>
                 </div>
               )}
-              {!payOnsite && (
-                <div className={styles.confirmItem}>
-                  <div className={styles.confirmVal}>{players}</div>
-                  <div className={styles.confirmKey}>{players === 1 ? 'Player' : 'Players'}</div>
-                </div>
-              )}
             </div>
             <div className={styles.confirmRight}>
               <div className={styles.priceBreakdown}>
                 <span>Court ₱{courtFee.toLocaleString()}</span>
                 <span>{payOnsite ? '·' : '+'} Entrance ₱{entranceFee.toLocaleString()}{payOnsite ? ' (onsite)' : ''}</span>
               </div>
-              <button
-                type="button"
-                className={`${styles.payModeToggle} ${payOnsite ? styles.payModeToggleActive : ''}`}
-                onClick={() => setPayOnsite(v => !v)}
-                aria-pressed={payOnsite}
-                aria-label="Toggle pay entrance onsite"
-              >
-                <span className={styles.payModeSwitch} />
-                Pay entrance at front desk
-              </button>
+              {phase === 'review' && (
+                <button
+                  type="button"
+                  className={`${styles.payModeToggle} ${payOnsite ? styles.payModeToggleActive : ''}`}
+                  onClick={() => setPayOnsite(v => !v)}
+                  aria-pressed={payOnsite}
+                  aria-label="Toggle pay entrance onsite"
+                >
+                  <span className={styles.payModeSwitch} />
+                  Pay entrance at front desk
+                </button>
+              )}
               <div className={styles.confirmPrice}>₱{onlineDue.toLocaleString()} <span>{payOnsite ? 'due online' : 'preview'}</span></div>
               {payOnsite && (
                 <div className={styles.onsiteDueLine}>+ ₱{entranceFee.toLocaleString()} cash on arrival</div>
               )}
-              <button className="btn-primary" disabled style={{ fontSize: 14, padding: '14px 28px', opacity: 0.5, cursor: 'not-allowed' }}>
-                PREVIEW — no booking lands
-              </button>
+              {phase === 'review' ? (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => setPhase('details')}
+                  style={{ fontSize: 14, padding: '14px 28px' }}
+                >
+                  Continue →
+                </button>
+              ) : (
+                <button className="btn-primary" disabled style={{ fontSize: 14, padding: '14px 28px', opacity: 0.5, cursor: 'not-allowed' }}>
+                  Confirm &amp; Pay — wiring in next commit
+                </button>
+              )}
             </div>
           </div>
         )}

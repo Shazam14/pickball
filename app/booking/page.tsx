@@ -405,18 +405,6 @@ export default function BookingPage() {
             <Link href="/" className={styles.back}>← Back</Link>
             <div className={styles.headerRight}>
               <TourButton storageKey="pickball:tour:a:seen" steps={TOUR_A_STEPS} className={styles.tourBtn} />
-              <Link href="/concept-c/booking" className={styles.conceptToggle} aria-label="Preview the old grid (Phase H)">
-                <span className={styles.conceptDot} />
-                <span className={styles.conceptLabel}>OLD GRID →</span>
-              </Link>
-              <Link href="/concept-d/booking" className={styles.conceptToggle} aria-label="Preview independent multi-range">
-                <span className={styles.conceptDot} />
-                <span className={styles.conceptLabel}>INDEPENDENT →</span>
-              </Link>
-              <Link href="/concept-b/booking" className={styles.conceptToggle} aria-label="Preview Concept B design">
-                <span className={styles.conceptDot} />
-                <span className={styles.conceptLabel}>CONCEPT B →</span>
-              </Link>
             </div>
           </div>
           <div className={styles.pageLabel}>— Play Pickleball</div>
