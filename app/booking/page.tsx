@@ -798,7 +798,7 @@ export default function ConceptDBookingPage() {
             <div className={styles.confirmRight}>
               <div className={styles.priceBreakdown}>
                 <span>Court ₱{courtFee.toLocaleString()}</span>
-                <span>{payOnsite ? '·' : '+'} Entrance ₱{entranceFee.toLocaleString()}{payOnsite ? ' (onsite)' : ''}</span>
+                <span>{payOnsite ? `· Entrance ₱${ENTRANCE_FEE_PER_PERSON}/head (paid onsite)` : `+ Entrance ₱${entranceFee.toLocaleString()}`}</span>
               </div>
               {phase === 'review' && (
                 <button

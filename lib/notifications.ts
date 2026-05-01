@@ -104,8 +104,8 @@ export async function sendConfirmationEmail(
             <td style="padding: 10px 0; text-align: right; color: #22c55e; font-weight: 700; font-size: 18px;">₱${total.toLocaleString()}</td>
           </tr>
           ${onsiteEntrance ? `<tr>
-            <td style="padding: 10px 0; color: #666;">Due at Front Desk</td>
-            <td style="padding: 10px 0; text-align: right; color: #f59e0b; font-weight: 700;">₱${entranceFee.toLocaleString()} <span style="color: #666; font-weight: 400; font-size: 12px;">(₱${ENTRANCE_FEE_PER_PERSON} × ${booking.players})</span></td>
+            <td style="padding: 10px 0; color: #666;">Entrance</td>
+            <td style="padding: 10px 0; text-align: right; color: #f59e0b; font-weight: 700;">₱${ENTRANCE_FEE_PER_PERSON}/head <span style="color: #666; font-weight: 400; font-size: 12px;">(paid onsite)</span></td>
           </tr>` : ''}
         </table>
 
@@ -113,7 +113,7 @@ export async function sendConfirmationEmail(
         <div style="background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.4); padding: 16px; margin-bottom: 24px;">
           <div style="color: #f59e0b; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px;">Pay Entrance On Arrival</div>
           <p style="margin: 0; font-size: 13px; color: #ddd; line-height: 1.55;">
-            Bring <strong>₱${entranceFee.toLocaleString()}</strong> cash (₱${ENTRANCE_FEE_PER_PERSON} per player). Pay at the front desk on arrival to get each player's check-in QR.
+            Pay <strong>₱${ENTRANCE_FEE_PER_PERSON}</strong> cash per player at the front desk on arrival. Each paid player gets a check-in QR at the desk.
           </p>
         </div>
         ` : ''}
