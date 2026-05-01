@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Nav from '@/components/Nav'
 import { LobbyPlanButton } from '@/components/LobbyPlan'
 import CourtHourMatrix, { type Slot } from './CourtHourMatrix'
-import { TOTAL_COURTS, ENTRANCE_FEE_PER_PERSON, priceForHour } from '@/lib/types'
+import { TOTAL_COURTS, ENTRANCE_FEE_PER_PERSON, priceForHour, COURT_PRICE_PER_HOUR, COURT_PRICE_OFFPEAK } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
@@ -86,6 +86,49 @@ function groupRanges(picks: Slot[]): { court: number; start: number; end: number
     out.push({ court, start, end })
   }
   return out.sort((a, b) => a.court - b.court || a.start - b.start)
+}
+
+function RateGuide({ date, holidays }: { date: string; holidays: Set<string> }) {
+  const d = new Date(date + 'T00:00:00')
+  const dow = d.getDay()
+  const isWeekend = dow === 0 || dow === 6
+  const isHoliday = holidays.has(date)
+  const isFlatDay = isWeekend || isHoliday
+
+  const ctxLabel = isHoliday ? `${DOW[dow].toUpperCase()} · HOLIDAY`
+    : isWeekend ? `${DOW[dow].toUpperCase()} · WEEKEND`
+    : `${DOW[dow].toUpperCase()} · WEEKDAY`
+
+  const tiers = [
+    { key: 'offpeak', label: 'Off-Peak', meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,    active: !isFlatDay },
+    { key: 'peak',    label: 'Peak',     meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR,   active: !isFlatDay },
+    { key: 'weekend', label: 'Weekend',  meta: 'Sat–Sun · all day',  price: COURT_PRICE_PER_HOUR,   active: isWeekend && !isHoliday },
+    { key: 'holiday', label: 'Holiday',  meta: 'PH/Cebu · all day',  price: COURT_PRICE_PER_HOUR,   active: isHoliday },
+  ]
+
+  return (
+    <div className={styles.rateGuide}>
+      <div className={styles.rateGuideHead}>
+        <div className={styles.sectionLabel} style={{ marginBottom: 0 }}>Rate Guide</div>
+        <div className={styles.rateGuideHeadCtx}>Selected: <strong>{ctxLabel}</strong></div>
+      </div>
+      <div className={styles.rateChips}>
+        {tiers.map(t => (
+          <div key={t.key} className={`${styles.rateChip} ${t.active ? styles.rateChipActive : ''}`}>
+            <span className={styles.rateChipDot} />
+            <div className={styles.rateChipBody}>
+              <div className={styles.rateChipLabel}>{t.label}</div>
+              <div className={styles.rateChipMeta}>{t.meta}</div>
+            </div>
+            <div className={styles.rateChipPrice}>₱{t.price}<span>/hr</span></div>
+          </div>
+        ))}
+      </div>
+      <div className={styles.rateGuideFoot}>
+        + ₱{ENTRANCE_FEE_PER_PERSON} entrance per player · <strong>Open daily 8AM–12AM</strong>
+      </div>
+    </div>
+  )
 }
 
 export default function ConceptDBookingPage() {
@@ -277,6 +320,9 @@ export default function ConceptDBookingPage() {
             )
           })()}
         </div>
+
+        {/* RATE GUIDE */}
+        <RateGuide date={date} holidays={holidays} />
 
         {/* MATRIX */}
         <div className={styles.matrixSection}>
