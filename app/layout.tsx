@@ -9,6 +9,7 @@ const barlow = Barlow({
   weight: ['300', '400', '500'],
   variable: '--font-barlow',
   display: 'swap',
+  preload: false,
 })
 
 const barlowCondensed = Barlow_Condensed({
@@ -16,6 +17,7 @@ const barlowCondensed = Barlow_Condensed({
   weight: ['400', '600', '700', '900'],
   variable: '--font-barlow-condensed',
   display: 'swap',
+  preload: false,
 })
 
 export const metadata: Metadata = {
