@@ -163,23 +163,49 @@ export default function BookingPage() {
     customerEmail.trim().length > 0 &&
     players >= 1
 
-  const fetchAvailability = useCallback(async (d: string) => {
-    setLoading(true)
-    setSelectedCourts([])
-    setAnchorH(null)
-    setEndH(null)
+  // Per-date cache + race-protection. cacheRef survives renders.
+  const cacheRef = useRef<Map<string, SlotMatrix>>(new Map())
+  const currentDateRef = useRef(date)
+  useEffect(() => { currentDateRef.current = date }, [date])
+
+  const fetchAvailability = useCallback(async (d: string, opts?: { background?: boolean }) => {
+    const cached = cacheRef.current.get(d)
+    if (cached && currentDateRef.current === d) {
+      setSlots(cached)
+    }
+    if (!cached && !opts?.background) setLoading(true)
     try {
       const res = await fetch(`/api/availability?date=${d}&duration=1`)
       const data = await res.json()
-      setSlots(data.slots || {})
+      const fresh: SlotMatrix = data.slots || {}
+      cacheRef.current.set(d, fresh)
+      if (currentDateRef.current === d) setSlots(fresh)
     } finally {
-      setLoading(false)
+      if (!opts?.background) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchAvailability(date) }, [date, fetchAvailability])
+  // User date change: clear selection, fetch (cache-first).
+  useEffect(() => {
+    setSelectedCourts([])
+    setAnchorH(null)
+    setEndH(null)
+    fetchAvailability(date)
+  }, [date, fetchAvailability])
 
-  // Realtime: re-fetch when any booking is locked/confirmed for this date
+  // On mount: prefetch today + 6 upcoming days.
+  useEffect(() => {
+    const start = new Date()
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
+      const iso = isoOf(d)
+      if (!cacheRef.current.has(iso)) {
+        fetchAvailability(iso, { background: true })
+      }
+    }
+  }, [fetchAvailability])
+
+  // Realtime: invalidate cache + background refetch (no spinner, keep selection)
   const channelRef = useRef<ReturnType<typeof getSupabase>['channel'] extends (...args: any[]) => infer R ? R : never | null>(null)
   useEffect(() => {
     const supabase = getSupabase()
@@ -190,7 +216,10 @@ export default function BookingPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'bookings', filter: `booking_date=eq.${date}` },
-        () => { fetchAvailability(date) }
+        () => {
+          cacheRef.current.delete(date)
+          fetchAvailability(date, { background: true })
+        }
       )
       .subscribe()
 
@@ -293,7 +322,8 @@ export default function BookingPage() {
 
   function handleExpire() {
     setShowModal(false); setLockData(null)
-    setAnchorH(null); setEndH(null)
+    setSelectedCourts([]); setAnchorH(null); setEndH(null)
+    cacheRef.current.delete(date)
     fetchAvailability(date)
     setLockError('Your 5-minute hold expired. Please select a slot again.')
   }
@@ -316,6 +346,7 @@ export default function BookingPage() {
     setSelectedCourts([]); setAnchorH(null); setEndH(null)
     setCustomerName(''); setCustomerPhone(''); setCustomerEmail(''); setPlayers(4)
     setPlayerNames(Array(3).fill(''))
+    cacheRef.current.delete(date)
     fetchAvailability(date)
   }
 
