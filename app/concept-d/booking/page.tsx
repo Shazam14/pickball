@@ -100,10 +100,9 @@ function RateGuide({ date, holidays }: { date: string; holidays: Set<string> }) 
     : `${DOW[dow].toUpperCase()} · WEEKDAY`
 
   const tiers = [
-    { key: 'offpeak', label: 'Off-Peak', meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,    active: !isFlatDay },
-    { key: 'peak',    label: 'Peak',     meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR,   active: !isFlatDay },
-    { key: 'weekend', label: 'Weekend',  meta: 'Sat–Sun · all day',  price: COURT_PRICE_PER_HOUR,   active: isWeekend && !isHoliday },
-    { key: 'holiday', label: 'Holiday',  meta: 'PH/Cebu · all day',  price: COURT_PRICE_PER_HOUR,   active: isHoliday },
+    { key: 'weekday-am', label: 'Weekday',          meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,  active: !isFlatDay },
+    { key: 'weekday-pm', label: 'Weekday',          meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR, active: !isFlatDay },
+    { key: 'flat',       label: 'Weekend / Holiday', meta: 'Sat–Sun · PH/Cebu',  price: COURT_PRICE_PER_HOUR, active: isFlatDay },
   ]
 
   return (
@@ -148,6 +147,10 @@ export default function ConceptDBookingPage() {
   const courtFee = picks.reduce((sum, p) => sum + priceForHour(date, p.hour, holidays), 0)
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const onlineDue = courtFee + (payOnsite ? 0 : entranceFee)
+  const numCourts = new Set(picks.map(p => p.court)).size
+  const amHours = picks.filter(p => p.hour < 12).length
+  const pmHours = picks.filter(p => p.hour >= 12).length
+  const showAmPmBreakdown = amHours > 0 && pmHours > 0
 
   // Per-date cache + race-protection. cacheRef survives renders.
   const cacheRef = useRef<Map<string, SlotMatrix>>(new Map())
@@ -249,20 +252,6 @@ export default function ConceptDBookingPage() {
         <div className={styles.header}>
           <div className={styles.headerTop}>
             <Link href="/" className={styles.back}>← Back</Link>
-            <div className={styles.headerRight}>
-              <Link href="/booking" className={styles.conceptToggle} aria-label="Back to the new Kiln-style grid">
-                <span className={styles.conceptDot} />
-                <span className={styles.conceptLabel}>← BACK TO NEW GRID</span>
-              </Link>
-              <Link href="/concept-c/booking" className={styles.conceptToggle} aria-label="Old Phase H grid">
-                <span className={styles.conceptDot} />
-                <span className={styles.conceptLabel}>OLD GRID →</span>
-              </Link>
-              <Link href="/concept-b/booking" className={styles.conceptToggle} aria-label="Concept B design preview">
-                <span className={styles.conceptDot} />
-                <span className={styles.conceptLabel}>CONCEPT B →</span>
-              </Link>
-            </div>
           </div>
           <div className={styles.pageLabel}>— Concept D · UI Preview Only</div>
           <div className={styles.pageTitle}>Independent Multi-Slot</div>
@@ -398,34 +387,51 @@ export default function ConceptDBookingPage() {
           </div>
         )}
 
+        {/* DETAILS — players stepper (Step 3 will expand: name/phone/email/player names) */}
+        {picks.length > 0 && (
+          <div className={styles.detailsSection}>
+            <div className={styles.sectionLabel}>03 — Your Details</div>
+            <div className={styles.field} data-tour="players" style={{ minWidth: 140, maxWidth: 240, marginTop: 12 }}>
+              <label className="field-label">Players {payOnsite ? `(₱${ENTRANCE_FEE_PER_PERSON} cash on arrival)` : `(₱${ENTRANCE_FEE_PER_PERSON} / head)`}</label>
+              <div className={styles.stepper}>
+                <button type="button" className={styles.stepperBtn}
+                  onClick={() => setPlayers(p => Math.max(1, p - 1))}
+                  disabled={players <= 1} aria-label="Decrease players">–</button>
+                <span className={styles.stepperValue}>{players}</span>
+                <button type="button" className={styles.stepperBtn}
+                  onClick={() => setPlayers(p => Math.min(20, p + 1))}
+                  disabled={players >= 20} aria-label="Increase players">+</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* PRICE PANEL */}
         {picks.length > 0 && (
           <div className={styles.confirmPanel} data-tour="confirm">
             <div className={styles.confirmDetails}>
               <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{ranges.length}</div>
-                <div className={styles.confirmKey}>{ranges.length === 1 ? 'Range' : 'Ranges'}</div>
+                <div className={styles.confirmVal}>{numCourts}</div>
+                <div className={styles.confirmKey}>{numCourts === 1 ? 'Court' : 'Courts'}</div>
               </div>
-              <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{totalHours}h</div>
-                <div className={styles.confirmKey}>Total Hours</div>
-              </div>
-              <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{players}</div>
-                <div className={styles.confirmKey}>Players</div>
-              </div>
-              <div className={styles.field} data-tour="players" style={{ minWidth: 140 }}>
-                <label className="field-label">Players (₱{ENTRANCE_FEE_PER_PERSON} / head)</label>
-                <div className={styles.stepper}>
-                  <button type="button" className={styles.stepperBtn}
-                    onClick={() => setPlayers(p => Math.max(1, p - 1))}
-                    disabled={players <= 1} aria-label="Decrease players">–</button>
-                  <span className={styles.stepperValue}>{players}</span>
-                  <button type="button" className={styles.stepperBtn}
-                    onClick={() => setPlayers(p => Math.min(20, p + 1))}
-                    disabled={players >= 20} aria-label="Increase players">+</button>
+              {showAmPmBreakdown ? (
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                  <div className={styles.confirmItem}>
+                    <div className={styles.confirmVal}>{amHours}h</div>
+                    <div className={styles.confirmKey}>Morning</div>
+                  </div>
+                  <span style={{ fontSize: 22, color: 'rgba(255,255,255,0.35)', fontWeight: 300, paddingTop: 6, alignSelf: 'flex-start' }}>+</span>
+                  <div className={styles.confirmItem}>
+                    <div className={styles.confirmVal}>{pmHours}h</div>
+                    <div className={styles.confirmKey}>Evening</div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className={styles.confirmItem}>
+                  <div className={styles.confirmVal}>{totalHours}h</div>
+                  <div className={styles.confirmKey}>{amHours > 0 ? 'Morning' : 'Evening'}</div>
+                </div>
+              )}
             </div>
             <div className={styles.confirmRight}>
               <div className={styles.priceBreakdown}>
