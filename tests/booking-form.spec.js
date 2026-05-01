@@ -78,7 +78,7 @@ const cellAt = (court, hour) => `[aria-label="Court ${court} at ${hour}"]`;
 test.describe('Booking — phase 1 toggle behavior', () => {
   test('single tap adds a 1-hour slot', async ({ page }) => {
     await page.goto(`${BASE}/booking`);
-    await expect(page.getByText('Independent Multi-Slot')).toBeVisible();
+    await expect(page.locator('[class*="pageTitle"]')).toContainText('Reserve a Court');
 
     const cell = page.locator(cellAt(COURT, '11AM'));
     await cell.click();

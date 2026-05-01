@@ -433,11 +433,11 @@ export default function ConceptDBookingPage() {
           <div className={styles.headerTop}>
             <Link href="/" className={styles.back}>← Back</Link>
           </div>
-          <div className={styles.pageLabel}>— Concept D · UI Preview Only</div>
-          <div className={styles.pageTitle}>Independent Multi-Slot</div>
+          <div className={styles.pageLabel}>— Book a Court</div>
+          <div className={styles.pageTitle}>Reserve a Court</div>
           {phase === 'review' && (
             <p style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 13, maxWidth: 720 }}>
-              Tap any green cell to add a 1-hour slot. Tap again to remove it. Adjacent slots on the same court merge into a single range. <strong>Preview only — no booking lands.</strong>
+              Tap any green cell to add a 1-hour slot. Tap again to remove it. Adjacent slots on the same court merge into a single range.
             </p>
           )}
         </div>
