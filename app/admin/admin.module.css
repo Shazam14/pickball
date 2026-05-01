@@ -212,3 +212,26 @@
 }
 
 .error { color: #f87171; font-size: 13px; margin-top: 8px; }
+
+.formGrid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.formGrid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.metaGrid { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
+
+@media (max-width: 640px) {
+  .page { padding: 24px 16px; }
+  .header { flex-wrap: wrap; gap: 12px; }
+  .title { font-size: 24px; }
+  .headerRight { width: 100%; justify-content: flex-end; }
+  .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { padding: 10px 14px; flex-shrink: 0; }
+  .card { padding: 16px; }
+  .cardTop { flex-wrap: wrap; gap: 8px; }
+  .cardGrid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .ref { font-size: 18px; }
+  .actions { flex-wrap: wrap; }
+  .approveBtn, .rejectBtn { flex: 1; padding: 10px 16px; min-width: 0; }
+  .formGrid2 { grid-template-columns: 1fr; }
+  .formGrid4 { grid-template-columns: repeat(2, 1fr); }
+  .metaGrid { grid-template-columns: 1fr; }
+}

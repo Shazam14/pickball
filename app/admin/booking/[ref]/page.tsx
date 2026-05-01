@@ -281,7 +281,7 @@ export default function AdminBookingPage({
           {/* Audit metadata */}
           <div className={styles.card} style={{ marginBottom: 16 }}>
             <div className={styles.fieldLabel}>Audit metadata (applies to next save)</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 12, marginTop: 12 }}>
+            <div className={styles.metaGrid} style={{ marginTop: 12 }}>
               <input
                 className="field-input"
                 placeholder="Your name (auto-saved)"
@@ -410,7 +410,7 @@ function CustomerCard({
   return (
     <div className={styles.card} style={{ marginBottom: 16 }}>
       <div className={styles.fieldLabel}>Customer (applies to all slots)</div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 12 }}>
+      <div className={styles.formGrid2} style={{ marginTop: 12 }}>
         <label style={{ fontSize: 11, color: '#6b7280' }}>
           Name
           <input className="field-input" value={name} onChange={e => setName(e.target.value)} style={{ marginTop: 4 }} />
@@ -506,7 +506,7 @@ function SlotCard({
         <span className={`${styles.statusBadge} ${styles[`status_${row.status}`]}`}>{row.status.toUpperCase()}</span>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+      <div className={styles.formGrid4}>
         <label style={{ fontSize: 11, color: '#6b7280' }}>
           Court (1–10)
           <input
