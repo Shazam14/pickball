@@ -4,10 +4,10 @@ import styles from './booking.module.css'
 
 type RowStatus = 'available' | 'limited' | 'booked'
 
-const STATUS_BG: Record<RowStatus, string> = {
+const STATUS_BORDER: Record<RowStatus, string> = {
   available: 'transparent',
-  limited: 'rgba(245,158,11,0.28)',
-  booked: 'rgba(239,68,68,0.20)',
+  limited: '#f59e0b',
+  booked: '#ef4444',
 }
 
 interface Props {
@@ -75,7 +75,7 @@ export default function CourtHourMatrix({
               <tr key={h}>
                 <td
                   className={`${styles.matrixTimeCell} ${inRange ? styles.matrixTimeCellSelected : ''}`}
-                  style={getRowStatus && !inRange ? { background: STATUS_BG[getRowStatus(h)] } : undefined}
+                  style={getRowStatus && !inRange ? { borderLeft: `4px solid ${STATUS_BORDER[getRowStatus(h)]}` } : undefined}
                 >
                   {formatHour(h)}–{formatHour(h + 1)}
                 </td>

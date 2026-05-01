@@ -20,10 +20,10 @@ interface Props {
   getRowStatus?: (h: number) => RowStatus
 }
 
-const STATUS_BG: Record<RowStatus, string> = {
+const STATUS_BORDER: Record<RowStatus, string> = {
   available: 'transparent',
-  limited: 'rgba(245,158,11,0.28)',
-  booked: 'rgba(239,68,68,0.20)',
+  limited: '#f59e0b',
+  booked: '#ef4444',
 }
 
 export default function CourtHourMatrix({
@@ -78,7 +78,7 @@ export default function CourtHourMatrix({
               <tr key={h}>
                 <td
                   className={`${styles.matrixTimeCell} ${inRangeRow ? styles.matrixTimeCellSelected : ''}`}
-                  style={getRowStatus && !inRangeRow ? { background: STATUS_BG[getRowStatus(h)] } : undefined}
+                  style={getRowStatus && !inRangeRow ? { borderLeft: `4px solid ${STATUS_BORDER[getRowStatus(h)]}` } : undefined}
                 >
                   {formatHour(h)}–{formatHour(h + 1)}
                 </td>

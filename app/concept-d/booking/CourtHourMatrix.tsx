@@ -6,10 +6,10 @@ export type Selection = { court: number; anchorH: number; endH: number | null }
 
 type RowStatus = 'available' | 'limited' | 'booked'
 
-const STATUS_BG: Record<RowStatus, string> = {
+const STATUS_BORDER: Record<RowStatus, string> = {
   available: 'transparent',
-  limited: 'rgba(245,158,11,0.28)',
-  booked: 'rgba(239,68,68,0.20)',
+  limited: '#f59e0b',
+  booked: '#ef4444',
 }
 
 interface Props {
@@ -56,7 +56,7 @@ export default function CourtHourMatrix({
             <tr key={h}>
               <td
                 className={styles.matrixTimeCell}
-                style={getRowStatus ? { background: STATUS_BG[getRowStatus(h)] } : undefined}
+                style={getRowStatus ? { borderLeft: `4px solid ${STATUS_BORDER[getRowStatus(h)]}` } : undefined}
               >
                 {formatHour(h)}–{formatHour(h + 1)}
               </td>
