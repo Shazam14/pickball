@@ -505,11 +505,6 @@ export default function ConceptDBookingPage() {
   return (
     <>
       <Nav />
-      {phase === 'details' && lockData && (
-        <div className={styles.holdBar}>
-          <HoldBadge lockedUntil={lockData.lockedUntil} onExpire={handleExpire} />
-        </div>
-      )}
       <div className={styles.page}>
         <div className={styles.header}>
           <div className={styles.headerTop}>
@@ -644,13 +639,13 @@ export default function ConceptDBookingPage() {
                     fontFamily: 'var(--font-barlow-condensed), sans-serif',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--green)', letterSpacing: 1 }}>SO{r.court}</span>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--green)', letterSpacing: 1 }}>COURT {r.court}</span>
                       <span style={{ fontSize: 14, color: 'var(--text-light)' }}>
                         {formatTime(toTime(r.start))} — {formatTime(toTime(r.end + 1))} · {hours}h · ₱{fee.toLocaleString()}
                       </span>
                     </div>
                     {phase === 'review' && (
-                      <button type="button" onClick={() => removeRange(r.court, r.start, r.end)} aria-label={`Remove SO${r.court} ${formatHour(r.start)}`}
+                      <button type="button" onClick={() => removeRange(r.court, r.start, r.end)} aria-label={`Remove COURT ${r.court} ${formatHour(r.start)}`}
                         style={{
                           background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
                           color: 'rgba(239,68,68,0.9)', fontFamily: 'inherit', fontSize: 11,
@@ -672,7 +667,10 @@ export default function ConceptDBookingPage() {
             <button type="button" className={styles.backLink} onClick={() => window.history.back()}>
               ← Back to selection
             </button>
-            <div className={styles.sectionLabel}>03 — Your Details</div>
+            <div className={styles.detailsHeader}>
+              <div className={styles.sectionLabel} style={{ marginBottom: 0 }}>03 — Your Details</div>
+              {lockData && <HoldBadge lockedUntil={lockData.lockedUntil} onExpire={handleExpire} />}
+            </div>
 
             {!payOnsite && (
               <>

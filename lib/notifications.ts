@@ -23,6 +23,8 @@ export async function sendConfirmationEmail(
 ) {
   if (!booking.customer_email) return
 
+  players = players.filter(p => p.full_name && p.full_name.trim().length > 0)
+
   const courts = courtNumbers.length
   const startHour = parseInt(booking.start_time.split(':')[0])
   const year = parseInt(booking.booking_date.slice(0, 4))
@@ -32,8 +34,8 @@ export async function sendConfirmationEmail(
   const entranceFee = booking.players * ENTRANCE_FEE_PER_PERSON
   const total = courtFee + (onsiteEntrance ? 0 : entranceFee)
   const courtLabel = courts === 1
-    ? `Court ${courtNumbers[0]}`
-    : `Courts ${courtNumbers.join(', ')}`
+    ? `COURT ${courtNumbers[0]}`
+    : `COURTS ${courtNumbers.join(', ')}`
 
   // QR per player when entrance was paid online. In onsite mode the desk hands
   // QRs out only after each player pays their ₱50 on arrival, so skip here.
