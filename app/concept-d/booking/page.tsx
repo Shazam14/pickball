@@ -259,15 +259,22 @@ export default function ConceptDBookingPage() {
             <div className={styles.sectionLabel}>01 — Pick Court & Time (independent per court)</div>
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
-          <div className={styles.matrixHint}>
-            {selections.length === 0 && (
-              <span>Tap any green cell. Each court has its own state — tap once on a court to set its anchor, tap a second cell on the same court to commit its range.</span>
-            )}
+          <div className={styles.matrixHint} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+            <div>
+              {selections.length === 0 && (
+                <span>Tap any green cell. Each court has its own state — tap once on a court to set its anchor, tap a second cell on the same court to commit its range.</span>
+              )}
+              {selections.length > 0 && (
+                <>
+                  <span className={styles.hintGreen}>{committed} committed · {inFlight} pending end-tap</span>
+                  {' · '}{totalHours}h total · ₱{courtFee.toLocaleString()} court fee
+                </>
+              )}
+            </div>
             {selections.length > 0 && (
-              <>
-                <span className={styles.hintGreen}>{committed} committed · {inFlight} pending end-tap</span>
-                {' · '}{totalHours}h total · ₱{courtFee.toLocaleString()} court fee
-              </>
+              <button type="button" className={styles.resetLink} onClick={handleResetAll} aria-label="Reset all selections">
+                Reset All
+              </button>
             )}
           </div>
           <CourtHourMatrix
@@ -279,11 +286,6 @@ export default function ConceptDBookingPage() {
             formatHour={formatHour}
             getRowStatus={(h) => getTimeStatus(toTime(h), slots)}
           />
-          {selections.length > 0 && (
-            <button type="button" className={styles.resetLink} onClick={handleResetAll} aria-label="Reset all selections">
-              Reset All
-            </button>
-          )}
           {error && <div className={styles.lockError} style={{ marginTop: 12 }}>{error}</div>}
         </div>
 
