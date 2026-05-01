@@ -104,19 +104,45 @@ export default function ConceptDBookingPage() {
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const price = courtFee + entranceFee
 
-  const fetchAvailability = useCallback(async (d: string) => {
-    setLoading(true)
-    setPicks([])
+  // Per-date cache + race-protection. cacheRef survives renders.
+  const cacheRef = useRef<Map<string, SlotMatrix>>(new Map())
+  const currentDateRef = useRef(date)
+  useEffect(() => { currentDateRef.current = date }, [date])
+
+  const fetchAvailability = useCallback(async (d: string, opts?: { background?: boolean }) => {
+    const cached = cacheRef.current.get(d)
+    if (cached && currentDateRef.current === d) {
+      setSlots(cached)
+    }
+    if (!cached && !opts?.background) setLoading(true)
     try {
       const res = await fetch(`/api/availability?date=${d}&duration=1`)
       const data = await res.json()
-      setSlots(data.slots || {})
+      const fresh: SlotMatrix = data.slots || {}
+      cacheRef.current.set(d, fresh)
+      if (currentDateRef.current === d) setSlots(fresh)
     } finally {
-      setLoading(false)
+      if (!opts?.background) setLoading(false)
     }
   }, [])
 
-  useEffect(() => { fetchAvailability(date) }, [date, fetchAvailability])
+  // User date change: clear picks, fetch (cache-first).
+  useEffect(() => {
+    setPicks([])
+    fetchAvailability(date)
+  }, [date, fetchAvailability])
+
+  // On mount: prefetch today + 6 upcoming days.
+  useEffect(() => {
+    const start = new Date()
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i)
+      const iso = isoOf(d)
+      if (!cacheRef.current.has(iso)) {
+        fetchAvailability(iso, { background: true })
+      }
+    }
+  }, [fetchAvailability])
 
   const channelRef = useRef<ReturnType<typeof getSupabase>['channel'] extends (...args: any[]) => infer R ? R : never | null>(null)
   useEffect(() => {
@@ -126,7 +152,10 @@ export default function ConceptDBookingPage() {
       .channel(`bookings:${date}`)
       .on('postgres_changes',
         { event: '*', schema: 'public', table: 'bookings', filter: `booking_date=eq.${date}` },
-        () => { fetchAvailability(date) }
+        () => {
+          cacheRef.current.delete(date)
+          fetchAvailability(date, { background: true })
+        }
       )
       .subscribe()
     return () => { if (channelRef.current) supabase.removeChannel(channelRef.current) }
