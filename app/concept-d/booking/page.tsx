@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
 import { LobbyPlanButton } from '@/components/LobbyPlan'
-import CourtHourMatrix, { type Selection } from './CourtHourMatrix'
+import CourtHourMatrix, { type Slot } from './CourtHourMatrix'
 import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
@@ -45,8 +45,6 @@ const MAX_DAYS_AHEAD = 60
 const HOUR_MIN = 6
 const HOUR_MAX = 22
 const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN
-// Beyond this gap, a 2nd tap is treated as "switch anchor" instead of committing a giant range.
-const MAX_RANGE_GAP = 4
 
 function buildMonthDays(year: number, month: number) {
   const daysInMonth = new Date(year, month + 1, 0).getDate()
@@ -63,6 +61,33 @@ function buildMonthDays(year: number, month: number) {
   return out
 }
 
+// Group flat slot list into per-court ranges of consecutive hours.
+function groupRanges(picks: Slot[]): { court: number; start: number; end: number }[] {
+  const byCourt = new Map<number, number[]>()
+  for (const p of picks) {
+    const arr = byCourt.get(p.court) ?? []
+    arr.push(p.hour)
+    byCourt.set(p.court, arr)
+  }
+  const out: { court: number; start: number; end: number }[] = []
+  for (const [court, hours] of byCourt) {
+    const sorted = [...hours].sort((a, b) => a - b)
+    let start = sorted[0]
+    let end = sorted[0]
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] === end + 1) {
+        end = sorted[i]
+      } else {
+        out.push({ court, start, end })
+        start = sorted[i]
+        end = sorted[i]
+      }
+    }
+    out.push({ court, start, end })
+  }
+  return out.sort((a, b) => a.court - b.court || a.start - b.start)
+}
+
 export default function ConceptDBookingPage() {
   const [date, setDate] = useState(today())
   const [viewMonth, setViewMonth] = useState(() => {
@@ -71,23 +96,17 @@ export default function ConceptDBookingPage() {
   })
   const [slots, setSlots] = useState<SlotMatrix>({})
   const [loading, setLoading] = useState(false)
-  const [selections, setSelections] = useState<Selection[]>([])
-  const [error, setError] = useState('')
+  const [picks, setPicks] = useState<Slot[]>([])
   const [players, setPlayers] = useState(4)
 
-  // Total hours across all selections (only those with endH set count toward fee)
-  const totalHours = selections.reduce((acc, s) => {
-    if (s.endH === null) return acc
-    return acc + Math.abs(s.endH - s.anchorH) + 1
-  }, 0)
+  const totalHours = picks.length
   const courtFee = totalHours * COURT_PRICE_PER_HOUR
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const price = courtFee + entranceFee
 
   const fetchAvailability = useCallback(async (d: string) => {
     setLoading(true)
-    setSelections([])
-    setError('')
+    setPicks([])
     try {
       const res = await fetch(`/api/availability?date=${d}&duration=1`)
       const data = await res.json()
@@ -116,62 +135,27 @@ export default function ConceptDBookingPage() {
   const isSlotTaken = (court: number, time: string) =>
     !(slots[time]?.find(s => s.court === court)?.available ?? true)
 
+  const isCellSelected = (court: number, hour: number) =>
+    picks.some(p => p.court === court && p.hour === hour)
+
   function handleCellClick(court: number, h: number) {
-    setError('')
     if (isSlotTaken(court, toTime(h))) return
-
-    const existing = selections.find(s => s.court === court)
-
-    // No selection on this court → start new anchor.
-    if (!existing) {
-      setSelections(prev => [...prev, { court, anchorH: h, endH: null }])
-      return
-    }
-
-    // Range already committed → replace with a fresh anchor (tap-to-cycle).
-    if (existing.endH !== null) {
-      setSelections(prev =>
-        prev.map(s => s.court === court ? { court, anchorH: h, endH: null } : s)
-      )
-      return
-    }
-
-    // Pending anchor + far tap → treat as "switch anchor" (avoids accidental giant ranges).
-    // Same-cell tap (gap === 0) still commits a 1h range.
-    if (Math.abs(h - existing.anchorH) > MAX_RANGE_GAP) {
-      setSelections(prev =>
-        prev.map(s => s.court === court ? { court, anchorH: h, endH: null } : s)
-      )
-      return
-    }
-
-    // Commit range.
-    const min = Math.min(existing.anchorH, h)
-    const max = Math.max(existing.anchorH, h)
-    for (let hh = min; hh <= max; hh++) {
-      if (isSlotTaken(court, toTime(hh))) {
-        setError(`SO${court} is booked at ${formatHour(hh)}. Pick a smaller range or remove it.`)
-        return
-      }
-    }
-    setSelections(prev =>
-      prev.map(s => s.court === court ? { ...s, endH: h } : s)
-    )
+    setPicks(prev => {
+      const exists = prev.some(p => p.court === court && p.hour === h)
+      if (exists) return prev.filter(p => !(p.court === court && p.hour === h))
+      return [...prev, { court, hour: h }]
+    })
   }
 
-  function removeSelection(court: number) {
-    setError('')
-    setSelections(prev => prev.filter(s => s.court !== court))
+  function removeRange(court: number, start: number, end: number) {
+    setPicks(prev => prev.filter(p => !(p.court === court && p.hour >= start && p.hour <= end)))
   }
 
   function handleResetAll() {
-    setError('')
-    setSelections([])
+    setPicks([])
   }
 
-  const sorted = [...selections].sort((a, b) => a.court - b.court)
-  const inFlight = selections.filter(s => s.endH === null).length
-  const committed = selections.filter(s => s.endH !== null).length
+  const ranges = groupRanges(picks)
 
   return (
     <>
@@ -196,9 +180,9 @@ export default function ConceptDBookingPage() {
             </div>
           </div>
           <div className={styles.pageLabel}>— Concept D · UI Preview Only</div>
-          <div className={styles.pageTitle}>Independent Multi-Range</div>
+          <div className={styles.pageTitle}>Independent Multi-Slot</div>
           <p style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 13, maxWidth: 720 }}>
-            Each court has its own anchor + end. Tap any cell to start an anchor on that court. Tap a second cell on the same court to commit its range. Tap any cell on a different court to start an independent selection there. <strong>Preview only — no booking lands.</strong>
+            Tap any green cell to add a 1-hour slot. Tap again to remove it. Adjacent slots on the same court merge into a single range. <strong>Preview only — no booking lands.</strong>
           </p>
         </div>
 
@@ -256,22 +240,22 @@ export default function ConceptDBookingPage() {
         {/* MATRIX */}
         <div className={styles.matrixSection}>
           <div className={styles.sectionHead}>
-            <div className={styles.sectionLabel}>01 — Pick Court & Time (independent per court)</div>
+            <div className={styles.sectionLabel}>01 — Pick Court & Time (1 tap = 1 hour)</div>
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
           <div className={styles.matrixHint} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
-              {selections.length === 0 && (
-                <span>Tap any green cell. Each court has its own state — tap once on a court to set its anchor, tap a second cell on the same court to commit its range.</span>
+              {picks.length === 0 && (
+                <span>Tap any green cell to add a 1-hour slot. Tap a selected cell to remove it.</span>
               )}
-              {selections.length > 0 && (
+              {picks.length > 0 && (
                 <>
-                  <span className={styles.hintGreen}>{committed} committed · {inFlight} pending end-tap</span>
+                  <span className={styles.hintGreen}>{picks.length} {picks.length === 1 ? 'slot' : 'slots'} · {ranges.length} {ranges.length === 1 ? 'range' : 'ranges'}</span>
                   {' · '}{totalHours}h total · ₱{courtFee.toLocaleString()} court fee
                 </>
               )}
             </div>
-            {selections.length > 0 && (
+            {picks.length > 0 && (
               <button type="button" className={styles.resetLink} onClick={handleResetAll} aria-label="Reset all selections">
                 Reset All
               </button>
@@ -280,45 +264,37 @@ export default function ConceptDBookingPage() {
           <CourtHourMatrix
             courts={Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)}
             hours={Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i)}
-            selections={selections}
             isCellBooked={(c, h) => isSlotTaken(c, toTime(h))}
+            isCellSelected={isCellSelected}
             onCellClick={handleCellClick}
             formatHour={formatHour}
             getRowStatus={(h) => getTimeStatus(toTime(h), slots)}
           />
-          {error && <div className={styles.lockError} style={{ marginTop: 12 }}>{error}</div>}
         </div>
 
         {/* SELECTIONS LIST */}
-        {selections.length > 0 && (
+        {ranges.length > 0 && (
           <div className={styles.detailsSection}>
             <div className={styles.sectionLabel}>02 — Your Selections</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
-              {sorted.map(s => {
-                const range = s.endH === null
-                  ? null
-                  : { min: Math.min(s.anchorH, s.endH), max: Math.max(s.anchorH, s.endH) }
-                const hours = range ? range.max - range.min + 1 : 0
+              {ranges.map(r => {
+                const hours = r.end - r.start + 1
                 const fee = hours * COURT_PRICE_PER_HOUR
+                const key = `${r.court}-${r.start}-${r.end}`
                 return (
-                  <div key={s.court} style={{
+                  <div key={key} style={{
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                     padding: '12px 16px', background: 'var(--dark2)',
-                    border: range ? '1px solid rgba(34,197,94,0.4)' : '1px dashed rgba(255,255,255,0.2)',
+                    border: '1px solid rgba(34,197,94,0.4)',
                     fontFamily: 'var(--font-barlow-condensed), sans-serif',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--green)', letterSpacing: 1 }}>SO{s.court}</span>
-                      {range
-                        ? <span style={{ fontSize: 14, color: 'var(--text-light)' }}>
-                            {formatTime(toTime(range.min))} — {formatTime(toTime(range.max + 1))} · {hours}h · ₱{fee.toLocaleString()}
-                          </span>
-                        : <span style={{ fontSize: 13, color: 'rgba(255,196,0,0.85)' }}>
-                            anchor at {formatHour(s.anchorH)} — tap a second cell on SO{s.court} to commit
-                          </span>
-                      }
+                      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--green)', letterSpacing: 1 }}>SO{r.court}</span>
+                      <span style={{ fontSize: 14, color: 'var(--text-light)' }}>
+                        {formatTime(toTime(r.start))} — {formatTime(toTime(r.end + 1))} · {hours}h · ₱{fee.toLocaleString()}
+                      </span>
                     </div>
-                    <button type="button" onClick={() => removeSelection(s.court)} aria-label={`Remove SO${s.court}`}
+                    <button type="button" onClick={() => removeRange(r.court, r.start, r.end)} aria-label={`Remove SO${r.court} ${formatHour(r.start)}`}
                       style={{
                         background: 'transparent', border: '1px solid rgba(239,68,68,0.4)',
                         color: 'rgba(239,68,68,0.9)', fontFamily: 'inherit', fontSize: 11,
@@ -334,12 +310,12 @@ export default function ConceptDBookingPage() {
         )}
 
         {/* PRICE PANEL */}
-        {committed > 0 && (
+        {picks.length > 0 && (
           <div className={styles.confirmPanel} data-tour="confirm">
             <div className={styles.confirmDetails}>
               <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{committed}</div>
-                <div className={styles.confirmKey}>{committed === 1 ? 'Selection' : 'Selections'}</div>
+                <div className={styles.confirmVal}>{ranges.length}</div>
+                <div className={styles.confirmKey}>{ranges.length === 1 ? 'Range' : 'Ranges'}</div>
               </div>
               <div className={styles.confirmItem}>
                 <div className={styles.confirmVal}>{totalHours}h</div>

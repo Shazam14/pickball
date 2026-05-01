@@ -12,90 +12,74 @@ test.beforeEach(async ({ context }) => {
   });
 });
 
-const COURT = 5; // Far from booked courts (1-10 booked at 7PM in seed; 5 is generally clean).
+const COURT = 5;
 
-test.describe('/concept-d/booking — tap-to-cycle + 4h switch heuristic', () => {
+test.describe('/concept-d/booking — tap = 1h slot, toggle, multi-range per court', () => {
 
-  test('near tap (≤4h) commits range', async ({ page }) => {
+  test('single tap adds a 1-hour slot', async ({ page }) => {
     await page.goto(`${BASE}/concept-d/booking`);
-    await expect(page.getByText('Independent Multi-Range')).toBeVisible();
+    await expect(page.getByText('Independent Multi-Slot')).toBeVisible();
 
-    const anchor = page.locator(`[aria-label="Court ${COURT} at 11AM"]`);
-    const end = page.locator(`[aria-label="Court ${COURT} at 1PM"]`);
+    const cell = page.locator(`[aria-label="Court ${COURT} at 11AM"]`);
+    await cell.click();
+    await expect(cell).toHaveClass(/matrixCellSelected/);
 
-    await anchor.click();
-    await expect(anchor).toHaveClass(/matrixCellAnchor/);
-
-    // Near tap (gap = 2): commits the range.
-    await end.click();
-    await expect(anchor).toHaveClass(/matrixCellSelected/);
-    await expect(page.locator(`[aria-label="Court ${COURT} at 12PM"]`)).toHaveClass(/matrixCellSelected/);
-    await expect(end).toHaveClass(/matrixCellSelected/);
-
-    // Selection card shows committed range.
-    await expect(page.getByText(/11:00 AM — 2:00 PM/)).toBeVisible();
+    await expect(page.getByText(/11:00 AM — 12:00 PM/)).toBeVisible();
   });
 
-  test('far tap (>4h) switches anchor — does NOT highlight everything', async ({ page }) => {
+  test('two non-adjacent taps = two separate slots, no auto-fill', async ({ page }) => {
     await page.goto(`${BASE}/concept-d/booking`);
-    await expect(page.getByText('Independent Multi-Range')).toBeVisible();
+    await expect(page.getByText('Independent Multi-Slot')).toBeVisible();
 
-    const firstPick = page.locator(`[aria-label="Court ${COURT} at 11AM"]`); // h=11
-    const farPick = page.locator(`[aria-label="Court ${COURT} at 5PM"]`);    // h=17, gap=6
+    const seven = page.locator(`[aria-label="Court ${COURT} at 7AM"]`);
+    const ten = page.locator(`[aria-label="Court ${COURT} at 10AM"]`);
 
-    await firstPick.click();
-    await expect(firstPick).toHaveClass(/matrixCellAnchor/);
+    await seven.click();
+    await ten.click();
 
-    // The bug: this used to commit a 7-hour range from 11AM to 5PM. Now it should swap anchor.
-    await farPick.click();
+    // Both must be selected.
+    await expect(seven).toHaveClass(/matrixCellSelected/);
+    await expect(ten).toHaveClass(/matrixCellSelected/);
 
-    // First pick must NO LONGER be the anchor and must NOT be in a selected range.
-    await expect(firstPick).not.toHaveClass(/matrixCellAnchor/);
-    await expect(firstPick).not.toHaveClass(/matrixCellSelected/);
-
-    // Cells in between (12PM, 1PM, 2PM, 3PM, 4PM) must NOT be highlighted.
-    for (const h of ['12PM', '1PM', '2PM', '3PM', '4PM']) {
+    // Cells in between must NOT be highlighted.
+    for (const h of ['8AM', '9AM']) {
       await expect(page.locator(`[aria-label="Court ${COURT} at ${h}"]`)).not.toHaveClass(/matrixCellSelected/);
     }
 
-    // The far tap should now be the new anchor.
-    await expect(farPick).toHaveClass(/matrixCellAnchor/);
+    // Selection list shows two separate 1h ranges (use specific time windows).
+    await expect(page.getByText(/7:00 AM — 8:00 AM/)).toBeVisible();
+    await expect(page.getByText(/10:00 AM — 11:00 AM/)).toBeVisible();
   });
 
-  test('tap on a court with a committed range starts a fresh anchor', async ({ page }) => {
+  test('two adjacent taps merge into one range', async ({ page }) => {
     await page.goto(`${BASE}/concept-d/booking`);
-    await expect(page.getByText('Independent Multi-Range')).toBeVisible();
+    await expect(page.getByText('Independent Multi-Slot')).toBeVisible();
 
-    const a = page.locator(`[aria-label="Court ${COURT} at 11AM"]`);
-    const b = page.locator(`[aria-label="Court ${COURT} at 12PM"]`);
-    const newAnchor = page.locator(`[aria-label="Court ${COURT} at 5PM"]`);
+    const seven = page.locator(`[aria-label="Court ${COURT} at 7AM"]`);
+    const eight = page.locator(`[aria-label="Court ${COURT} at 8AM"]`);
 
-    // Commit 11-12.
-    await a.click();
-    await b.click();
-    await expect(a).toHaveClass(/matrixCellSelected/);
-    await expect(b).toHaveClass(/matrixCellSelected/);
+    await seven.click();
+    await eight.click();
+    await expect(seven).toHaveClass(/matrixCellSelected/);
+    await expect(eight).toHaveClass(/matrixCellSelected/);
 
-    // Tap elsewhere → committed range cleared, fresh anchor at new tap.
-    await newAnchor.click();
-    await expect(a).not.toHaveClass(/matrixCellSelected/);
-    await expect(b).not.toHaveClass(/matrixCellSelected/);
-    await expect(newAnchor).toHaveClass(/matrixCellAnchor/);
+    // Range row shows 2h merged: "7:00 AM — 9:00 AM · 2h · ₱1,400".
+    await expect(page.getByText(/7:00 AM — 9:00 AM · 2h/)).toBeVisible();
   });
 
-  test('same-cell tap commits a 1h range (1h booking still possible)', async ({ page }) => {
+  test('tap on a selected cell removes it (toggle)', async ({ page }) => {
     await page.goto(`${BASE}/concept-d/booking`);
-    await expect(page.getByText('Independent Multi-Range')).toBeVisible();
+    await expect(page.getByText('Independent Multi-Slot')).toBeVisible();
 
     const cell = page.locator(`[aria-label="Court ${COURT} at 11AM"]`);
-
-    await cell.click();
-    await expect(cell).toHaveClass(/matrixCellAnchor/);
-
-    // Tap same cell again → commits 1h.
     await cell.click();
     await expect(cell).toHaveClass(/matrixCellSelected/);
-    await expect(page.getByText(/11:00 AM — 12:00 PM/)).toBeVisible();
+
+    await cell.click();
+    await expect(cell).not.toHaveClass(/matrixCellSelected/);
+
+    // Selection list cleared (no '— Your Selections' header).
+    await expect(page.getByText('02 — Your Selections')).toHaveCount(0);
   });
 
 });

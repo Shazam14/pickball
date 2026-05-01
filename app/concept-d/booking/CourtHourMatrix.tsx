@@ -2,7 +2,7 @@
 
 import styles from './booking.module.css'
 
-export type Selection = { court: number; anchorH: number; endH: number | null }
+export type Slot = { court: number; hour: number }
 
 type RowStatus = 'available' | 'limited' | 'booked'
 
@@ -15,24 +15,15 @@ const STATUS_BORDER: Record<RowStatus, string> = {
 interface Props {
   courts: number[]
   hours: number[]
-  selections: Selection[]
   isCellBooked: (court: number, hour: number) => boolean
+  isCellSelected: (court: number, hour: number) => boolean
   onCellClick: (court: number, hour: number) => void
   formatHour: (h: number) => string
   getRowStatus?: (h: number) => RowStatus
 }
 
-function selectionForCourt(selections: Selection[], court: number): Selection | null {
-  return selections.find(s => s.court === court) ?? null
-}
-
-function rangeOf(s: Selection): { min: number; max: number } | null {
-  if (s.endH === null) return null
-  return { min: Math.min(s.anchorH, s.endH), max: Math.max(s.anchorH, s.endH) }
-}
-
 export default function CourtHourMatrix({
-  courts, hours, selections, isCellBooked, onCellClick, formatHour, getRowStatus,
+  courts, hours, isCellBooked, isCellSelected, onCellClick, formatHour, getRowStatus,
 }: Props) {
   return (
     <div className={styles.matrixWrap} data-tour="matrix">
@@ -40,15 +31,9 @@ export default function CourtHourMatrix({
         <thead>
           <tr>
             <th className={styles.matrixTimeHeader}>TIME</th>
-            {courts.map(c => {
-              const sel = selectionForCourt(selections, c)
-              const cls = [
-                styles.matrixCourtHeader,
-                sel ? styles.matrixCourtHeaderSelected : '',
-                styles.matrixCourtHeaderPassive,
-              ].filter(Boolean).join(' ')
-              return <th key={c} scope="col" className={cls}>SO{c}</th>
-            })}
+            {courts.map(c => (
+              <th key={c} scope="col" className={`${styles.matrixCourtHeader} ${styles.matrixCourtHeaderPassive}`}>SO{c}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
@@ -62,24 +47,19 @@ export default function CourtHourMatrix({
               </td>
               {courts.map(c => {
                 const booked = isCellBooked(c, h)
-                const sel = selectionForCourt(selections, c)
-                const isAnchorCell = sel !== null && sel.endH === null && sel.anchorH === h
-                const range = sel ? rangeOf(sel) : null
-                const inRange = range !== null && h >= range.min && h <= range.max
+                const selected = !booked && isCellSelected(c, h)
                 const rowStatus = getRowStatus?.(h)
-                const limited = !booked && !isAnchorCell && !inRange && rowStatus === 'limited'
+                const limited = !booked && !selected && rowStatus === 'limited'
                 const disabled = booked
                 const cls = [
                   styles.matrixCell,
                   booked ? styles.matrixCellBooked : '',
-                  isAnchorCell ? styles.matrixCellAnchor : '',
-                  inRange ? styles.matrixCellSelected : '',
+                  selected ? styles.matrixCellSelected : '',
                   limited ? styles.matrixCellLimited : '',
                 ].filter(Boolean).join(' ')
                 let glyph = ''
                 if (booked) glyph = '×'
-                else if (isAnchorCell) glyph = '●'
-                else if (inRange) glyph = '✓'
+                else if (selected) glyph = '✓'
                 return (
                   <td
                     key={c}
@@ -88,6 +68,7 @@ export default function CourtHourMatrix({
                     role="button"
                     tabIndex={disabled ? -1 : 0}
                     aria-disabled={disabled}
+                    aria-pressed={selected}
                     aria-label={`Court ${c} at ${formatHour(h)}`}
                     onKeyDown={(e) => { if (!disabled && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onCellClick(c, h) } }}
                   >
