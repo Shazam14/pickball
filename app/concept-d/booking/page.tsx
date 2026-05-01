@@ -3,11 +3,26 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import Nav from '@/components/Nav'
+import BookingModal from '@/components/BookingModal'
 import { LobbyPlanButton } from '@/components/LobbyPlan'
 import CourtHourMatrix, { type Slot } from './CourtHourMatrix'
 import { TOTAL_COURTS, ENTRANCE_FEE_PER_PERSON, priceForHour, COURT_PRICE_PER_HOUR, COURT_PRICE_OFFPEAK } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
+
+interface LockData { reference: string; lockedUntil: string; courtNumbers: number[] }
+interface SuccessData {
+  reference: string
+  ranges: { court_number: number; start_time: string; end_time: string }[]
+  bookingDate: string
+  price: number
+  players: number
+  customerName: string
+  customerPhone: string
+  customerEmail?: string
+  payOnsite: boolean
+  entranceFee: number
+}
 
 type SlotMatrix = Record<string, { court: number; available: boolean }[]>
 type TimeStatus = 'available' | 'limited' | 'booked'
@@ -147,6 +162,16 @@ export default function ConceptDBookingPage() {
   const [customerEmail, setCustomerEmail] = useState('')
   const [playerNames, setPlayerNames] = useState<string[]>(() => Array(3).fill(''))
   const [phase, setPhase] = useState<'review' | 'details'>('review')
+  const [locking, setLocking] = useState(false)
+  const [lockError, setLockError] = useState('')
+  const [lockData, setLockData] = useState<LockData | null>(null)
+  const [showModal, setShowModal] = useState(false)
+  const [success, setSuccess] = useState<SuccessData | null>(null)
+
+  const formValid =
+    customerName.trim().length > 0 &&
+    customerPhone.trim().length > 0 &&
+    customerEmail.trim().length > 0
 
   // Keep playerNames length in sync with players (preserves typed values).
   useEffect(() => {
@@ -259,6 +284,146 @@ export default function ConceptDBookingPage() {
   }
 
   const ranges = groupRanges(picks)
+
+  // Map UI ranges (hour-int bounds, end-inclusive) → API shape (HH:MM strings, duration in hours).
+  function rangesForApi() {
+    return ranges.map(r => ({
+      court_number: r.court,
+      start_time: toTime(r.start),
+      duration: r.end - r.start + 1,
+    }))
+  }
+
+  // Map UI ranges → display shape with end-time (start of the hour after the last picked slot).
+  function rangesForDisplay() {
+    return ranges.map(r => ({
+      court_number: r.court,
+      start_time: toTime(r.start),
+      end_time: toTime(r.end + 1),
+    }))
+  }
+
+  async function handleLockAndPay() {
+    if (picks.length === 0 || !formValid) return
+    setLocking(true)
+    setLockError('')
+    try {
+      const res = await fetch('/api/lock-slot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ranges: rangesForApi(),
+          booking_date: date,
+          players,
+          customer_name: customerName.trim(),
+          customer_phone: customerPhone.trim(),
+          customer_email: customerEmail.trim() || undefined,
+          player_names: payOnsite
+            ? [customerName.trim()]
+            : [customerName.trim(), ...playerNames.map(n => n.trim())],
+          pay_mode: payOnsite ? 'onsite_entrance' : 'online',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setLockError(data.error || 'Could not lock slot. Try again.')
+        if (res.status === 409) {
+          cacheRef.current.delete(date)
+          fetchAvailability(date)
+        }
+        return
+      }
+      setLockData({ reference: data.reference, lockedUntil: data.locked_until, courtNumbers: data.court_numbers })
+      setShowModal(true)
+    } catch {
+      setLockError('Network error. Please try again.')
+    } finally {
+      setLocking(false)
+    }
+  }
+
+  function handleExpire() {
+    setShowModal(false); setLockData(null)
+    setPicks([])
+    cacheRef.current.delete(date)
+    fetchAvailability(date)
+    setLockError('Your 5-minute hold expired. Please select again.')
+  }
+
+  function handleSuccess(reference: string) {
+    if (!lockData) return
+    setShowModal(false)
+    setSuccess({
+      reference,
+      ranges: rangesForDisplay(),
+      bookingDate: date,
+      price: onlineDue,
+      players,
+      customerName,
+      customerPhone,
+      customerEmail: customerEmail.trim() || undefined,
+      payOnsite,
+      entranceFee,
+    })
+    setPicks([])
+    setCustomerName(''); setCustomerPhone(''); setCustomerEmail('')
+    setPlayerNames(Array(3).fill(''))
+    setPlayers(4)
+    setPayOnsite(false)
+    setLockData(null)
+    cacheRef.current.delete(date)
+    fetchAvailability(date)
+  }
+
+  if (success) {
+    return (
+      <>
+        <Nav />
+        <div className={styles.successPage}>
+          <div className={styles.successCard}>
+            <div className={styles.successIcon}>✓</div>
+            <div className={styles.successTitle}>Booking Confirmed!</div>
+            <div className={styles.successSub}>
+              {success.payOnsite
+                ? `See you at the front desk — ₱${success.entranceFee.toLocaleString()} entrance due in cash on arrival.`
+                : 'See you on the court. Check your email for the QR gate passes.'}
+            </div>
+            <div className={styles.bookerSuccessBlock}>
+              <div className={styles.bookerSuccessLabel}>Booker</div>
+              <div className={styles.bookerSuccessName}>{success.customerName}</div>
+              <div className={styles.bookerSuccessContact}>{success.customerPhone}</div>
+              {success.customerEmail && <div className={styles.bookerSuccessContact}>{success.customerEmail}</div>}
+              <div className={styles.bookerSuccessPlayers}>{success.players} {success.players === 1 ? 'player' : 'players'} total</div>
+            </div>
+            <div className={styles.successSummary}>
+              <div className={styles.sRow}><span>Ref #</span><span className={styles.green}>{success.reference}</span></div>
+              <div className={styles.sRow}><span>Date</span><span>{success.bookingDate}</span></div>
+              {success.ranges.map((r, i) => (
+                <div key={i} className={styles.sRow}>
+                  <span>Court {r.court_number}</span>
+                  <span>{formatTime(r.start_time)} — {formatTime(r.end_time)}</span>
+                </div>
+              ))}
+              <div className={styles.sRow}>
+                <span>{success.payOnsite ? 'Paid online' : 'Amount Paid'}</span>
+                <span className={styles.green}>₱{success.price.toLocaleString()}</span>
+              </div>
+              {success.payOnsite && (
+                <div className={styles.sRow}>
+                  <span>Cash at desk</span>
+                  <span>₱{success.entranceFee.toLocaleString()}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button className="btn-primary" style={{ clipPath: 'none' }} onClick={() => setSuccess(null)}>Book Another</button>
+              <Link href="/" className="btn-outline" style={{ clipPath: 'none' }}>Back to Home</Link>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
 
   return (
     <>
@@ -591,14 +756,49 @@ export default function ConceptDBookingPage() {
                   Continue →
                 </button>
               ) : (
-                <button className="btn-primary" disabled style={{ fontSize: 14, padding: '14px 28px', opacity: 0.5, cursor: 'not-allowed' }}>
-                  Confirm &amp; Pay — wiring in next commit
-                </button>
+                <>
+                  {lockError && <div className={styles.lockError}>{lockError}</div>}
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={handleLockAndPay}
+                    disabled={locking || !formValid}
+                    style={{ fontSize: 14, padding: '14px 28px' }}
+                  >
+                    {locking ? 'Locking slot…' : !formValid ? 'Fill in your details' : 'Confirm & Pay — 5 min hold'}
+                  </button>
+                </>
               )}
             </div>
           </div>
         )}
       </div>
+
+      {showModal && lockData && (
+        <BookingModal
+          details={{
+            reference: lockData.reference,
+            lockedUntil: lockData.lockedUntil,
+            courtNumbers: lockData.courtNumbers,
+            bookingDate: date,
+            startTime: '',
+            endTime: '',
+            duration: totalHours,
+            players,
+            price: onlineDue,
+            courtFee,
+            entranceFee,
+            customerName,
+            customerPhone,
+            customerEmail: customerEmail.trim() || undefined,
+            ranges: rangesForDisplay(),
+            payOnsite,
+          }}
+          onSuccess={handleSuccess}
+          onExpire={handleExpire}
+          onClose={() => setShowModal(false)}
+        />
+      )}
     </>
   )
 }

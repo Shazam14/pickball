@@ -20,6 +20,10 @@ interface BookingDetails {
   customerName: string
   customerPhone: string
   customerEmail?: string
+  // Multi-range bookings (concept-d). When present, replaces the single Court+Time row.
+  ranges?: { court_number: number; start_time: string; end_time: string }[]
+  // When true, entrance fee is paid in cash at the front desk (not in `price`).
+  payOnsite?: boolean
 }
 
 interface Props {
@@ -125,27 +129,61 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
 
         {/* Booking summary */}
         <div className={styles.summary}>
-          <div className={styles.summaryRow}>
-            <span>{details.courtNumbers.length > 1 ? 'Courts' : 'Court'}</span><span>{details.courtNumbers.map(n => `Court ${n}`).join(', ')}</span>
-          </div>
-          <div className={styles.summaryRow}>
-            <span>Date</span><span>{details.bookingDate}</span>
-          </div>
-          <div className={styles.summaryRow}>
-            <span>Time</span><span>{formatTime(details.startTime)} – {formatTime(details.endTime)}</span>
-          </div>
-          <div className={styles.summaryRow}>
-            <span>Players</span><span>{details.players}</span>
-          </div>
-          <div className={styles.summaryRow}>
-            <span>{details.courtNumbers.length > 1 ? `${details.courtNumbers.length} Courts × ${details.duration}h` : `Court (${details.duration}h)`}</span><span>₱{details.courtFee.toLocaleString()}</span>
-          </div>
-          <div className={styles.summaryRow}>
-            <span>Entrance ({details.players}× ₱50)</span><span>₱{details.entranceFee.toLocaleString()}</span>
-          </div>
-          <div className={`${styles.summaryRow} ${styles.total}`}>
-            <span>Total</span><span>₱{details.price.toLocaleString()}</span>
-          </div>
+          {details.ranges && details.ranges.length > 0 ? (
+            <>
+              <div className={styles.summaryRow}>
+                <span>Date</span><span>{details.bookingDate}</span>
+              </div>
+              {details.ranges.map((r, i) => (
+                <div key={i} className={styles.summaryRow}>
+                  <span>Court {r.court_number}</span>
+                  <span>{formatTime(r.start_time)} – {formatTime(r.end_time)}</span>
+                </div>
+              ))}
+              <div className={styles.summaryRow}>
+                <span>Players</span><span>{details.players}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span>Court fee</span><span>₱{details.courtFee.toLocaleString()}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span>Entrance ({details.players}× ₱50)</span>
+                <span>{details.payOnsite ? 'Cash at desk' : `₱${details.entranceFee.toLocaleString()}`}</span>
+              </div>
+              <div className={`${styles.summaryRow} ${styles.total}`}>
+                <span>{details.payOnsite ? 'Due online' : 'Total'}</span><span>₱{details.price.toLocaleString()}</span>
+              </div>
+              {details.payOnsite && (
+                <div className={styles.summaryRow} style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                  <span>+ on arrival</span><span>₱{details.entranceFee.toLocaleString()} cash</span>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className={styles.summaryRow}>
+                <span>{details.courtNumbers.length > 1 ? 'Courts' : 'Court'}</span><span>{details.courtNumbers.map(n => `Court ${n}`).join(', ')}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span>Date</span><span>{details.bookingDate}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span>Time</span><span>{formatTime(details.startTime)} – {formatTime(details.endTime)}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span>Players</span><span>{details.players}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span>{details.courtNumbers.length > 1 ? `${details.courtNumbers.length} Courts × ${details.duration}h` : `Court (${details.duration}h)`}</span><span>₱{details.courtFee.toLocaleString()}</span>
+              </div>
+              <div className={styles.summaryRow}>
+                <span>Entrance ({details.players}× ₱50)</span><span>₱{details.entranceFee.toLocaleString()}</span>
+              </div>
+              <div className={`${styles.summaryRow} ${styles.total}`}>
+                <span>Total</span><span>₱{details.price.toLocaleString()}</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Step 1: Payment method */}
