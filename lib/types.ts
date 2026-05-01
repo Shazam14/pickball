@@ -33,11 +33,21 @@ export interface CourtAvailability {
   available: boolean
 }
 
+export interface LockSlotRange {
+  court_number: number
+  start_time: string  // HH:MM
+  duration: number    // hours
+}
+
 export interface LockSlotRequest {
-  court_numbers: number[]
+  // Legacy single-range body (one contiguous block across N courts).
+  court_numbers?: number[]
+  start_time?: string
+  duration?: number
+  // New multi-range body (concept-d independent multi-slot). One row per range.
+  ranges?: LockSlotRange[]
+
   booking_date: string
-  start_time: string
-  duration: number
   players: number
   customer_name: string
   customer_phone: string
