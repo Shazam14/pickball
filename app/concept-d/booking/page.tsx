@@ -432,6 +432,12 @@ export default function ConceptDBookingPage() {
                   <div className={styles.confirmKey}>{amHours > 0 ? 'Morning' : 'Evening'}</div>
                 </div>
               )}
+              {!payOnsite && (
+                <div className={styles.confirmItem}>
+                  <div className={styles.confirmVal}>{players}</div>
+                  <div className={styles.confirmKey}>{players === 1 ? 'Player' : 'Players'}</div>
+                </div>
+              )}
             </div>
             <div className={styles.confirmRight}>
               <div className={styles.priceBreakdown}>
