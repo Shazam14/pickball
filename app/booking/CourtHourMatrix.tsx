@@ -85,9 +85,11 @@ export default function CourtHourMatrix({
                 {courts.map(c => {
                   const booked = isCellBooked(c, h)
                   const held = !booked && isCellHeld(c, h)
+                  const rowStatus = getRowStatus?.(h)
                   const courtSel = selectedCourts.includes(c)
                   const isAnchorCell = endH === null && anchorH === h && c === anchorCourt
                   const cellSel = !isAnchorCell && courtSel && inRange
+                  const limited = !booked && !held && !cellSel && !isAnchorCell && rowStatus === 'limited'
                   const disabled = booked || held || !cellsInteractive
                   const cls = [
                     styles.matrixCell,
@@ -95,6 +97,7 @@ export default function CourtHourMatrix({
                     held ? styles.matrixCellHeld : '',
                     isAnchorCell ? styles.matrixCellAnchor : '',
                     cellSel ? styles.matrixCellSelected : '',
+                    limited ? styles.matrixCellLimited : '',
                     !cellsInteractive && !cellSel && !isAnchorCell && !booked && !held ? styles.matrixCellLocked : '',
                   ].filter(Boolean).join(' ')
                   let glyph = ''

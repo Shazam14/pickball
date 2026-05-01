@@ -66,12 +66,15 @@ export default function CourtHourMatrix({
                 const isAnchorCell = sel !== null && sel.endH === null && sel.anchorH === h
                 const range = sel ? rangeOf(sel) : null
                 const inRange = range !== null && h >= range.min && h <= range.max
+                const rowStatus = getRowStatus?.(h)
+                const limited = !booked && !isAnchorCell && !inRange && rowStatus === 'limited'
                 const disabled = booked
                 const cls = [
                   styles.matrixCell,
                   booked ? styles.matrixCellBooked : '',
                   isAnchorCell ? styles.matrixCellAnchor : '',
                   inRange ? styles.matrixCellSelected : '',
+                  limited ? styles.matrixCellLimited : '',
                 ].filter(Boolean).join(' ')
                 let glyph = ''
                 if (booked) glyph = '×'

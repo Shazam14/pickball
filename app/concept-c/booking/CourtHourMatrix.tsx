@@ -81,13 +81,16 @@ export default function CourtHourMatrix({
                 </td>
                 {courts.map(c => {
                   const booked = isCellBooked(c, h)
+                  const rowStatus = getRowStatus?.(h)
                   const courtSel = selectedCourts.includes(c)
                   const cellSel = courtSel && inRange
+                  const limited = !booked && !cellSel && rowStatus === 'limited'
                   const disabled = booked || !cellsInteractive
                   const cls = [
                     styles.matrixCell,
                     booked ? styles.matrixCellBooked : '',
                     cellSel ? styles.matrixCellSelected : '',
+                    limited ? styles.matrixCellLimited : '',
                     !cellsInteractive && !cellSel && !booked ? styles.matrixCellLocked : '',
                   ].filter(Boolean).join(' ')
                   return (
