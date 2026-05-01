@@ -24,15 +24,13 @@ interface SuccessData {
   entranceFee: number
 }
 
-type SlotMatrix = Record<string, { court: number; available: boolean }[]>
-type TimeStatus = 'available' | 'limited' | 'booked'
+type SlotMatrix = Record<string, { court: number; available: boolean; held: boolean }[]>
+type TimeStatus = 'available' | 'booked'
 
 function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
   if (!slots[time]) return 'available'
-  const count = slots[time].filter(s => s.available).length
-  if (count === 0) return 'booked'
-  if (count <= 3) return 'limited'
-  return 'available'
+  const anyOpen = slots[time].some(s => s.available || s.held)
+  return anyOpen ? 'available' : 'booked'
 }
 
 function formatTime(t: string) {
@@ -103,7 +101,7 @@ function groupRanges(picks: Slot[]): { court: number; start: number; end: number
   return out.sort((a, b) => a.court - b.court || a.start - b.start)
 }
 
-function RateGuide({ date, holidays }: { date: string; holidays: Set<string> }) {
+function RateGuide({ date, holidays, picksMade }: { date: string; holidays: Set<string>; picksMade: boolean }) {
   const d = new Date(date + 'T00:00:00')
   const dow = d.getDay()
   const isWeekend = dow === 0 || dow === 6
@@ -115,9 +113,9 @@ function RateGuide({ date, holidays }: { date: string; holidays: Set<string> }) 
     : `${DOW[dow].toUpperCase()} · WEEKDAY`
 
   const tiers = [
-    { key: 'weekday-am', label: 'Weekday',          meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,  active: !isFlatDay },
-    { key: 'weekday-pm', label: 'Weekday',          meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR, active: !isFlatDay },
-    { key: 'flat',       label: 'Weekend / Holiday', meta: 'Sat–Sun · PH/Cebu',  price: COURT_PRICE_PER_HOUR, active: isFlatDay },
+    { key: 'weekday-am', label: 'Weekday',          meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,  active: picksMade && !isFlatDay },
+    { key: 'weekday-pm', label: 'Weekday',          meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR, active: picksMade && !isFlatDay },
+    { key: 'flat',       label: 'Weekend / Holiday', meta: 'Sat–Sun · PH/Cebu',  price: COURT_PRICE_PER_HOUR, active: picksMade && isFlatDay },
   ]
 
   return (
@@ -325,8 +323,13 @@ export default function ConceptDBookingPage() {
     return () => { if (channelRef.current) supabase.removeChannel(channelRef.current) }
   }, [date, fetchAvailability])
 
-  const isSlotTaken = (court: number, time: string) =>
-    !(slots[time]?.find(s => s.court === court)?.available ?? true)
+  const isSlotTaken = (court: number, time: string) => {
+    const cell = slots[time]?.find(s => s.court === court)
+    if (!cell) return false
+    return !cell.available
+  }
+  const isSlotHeld = (court: number, time: string) =>
+    slots[time]?.find(s => s.court === court)?.held ?? false
 
   const isCellSelected = (court: number, hour: number) =>
     picks.some(p => p.court === court && p.hour === hour)
@@ -508,7 +511,7 @@ export default function ConceptDBookingPage() {
           <div className={styles.pageTitle}>Reserve a Court</div>
           {phase === 'review' && (
             <p style={{ marginTop: 8, color: 'rgba(255,255,255,0.55)', fontSize: 13, maxWidth: 720 }}>
-              Tap any green cell to add a 1-hour slot. Tap again to remove it. Adjacent slots on the same court merge into a single range.
+              Tap any vacant cell to add a 1-hour slot. Tap a selected cell to remove it. Adjacent slots on the same court merge into a single range.
             </p>
           )}
         </div>
@@ -567,7 +570,7 @@ export default function ConceptDBookingPage() {
         )}
 
         {/* RATE GUIDE — Phase 1 only */}
-        {phase === 'review' && <RateGuide date={date} holidays={holidays} />}
+        {phase === 'review' && <RateGuide date={date} holidays={holidays} picksMade={picks.length > 0} />}
 
         {/* MATRIX — Phase 1 only */}
         {phase === 'review' && (
@@ -576,10 +579,14 @@ export default function ConceptDBookingPage() {
             <div className={styles.sectionLabel}>01 — Pick Court & Time (1 tap = 1 hour)</div>
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
+          <div className={styles.legend}>
+            <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotGreen}`} />Available</div>
+            <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotRed}`} />Fully Booked</div>
+          </div>
           <div className={styles.matrixHint} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
               {picks.length === 0 && (
-                <span>Tap any green cell to add a 1-hour slot. Tap a selected cell to remove it.</span>
+                <span>Tap any vacant cell to add a 1-hour slot. Tap a selected cell to remove it.</span>
               )}
               {picks.length > 0 && (
                 <>
@@ -597,7 +604,8 @@ export default function ConceptDBookingPage() {
           <CourtHourMatrix
             courts={Array.from({ length: TOTAL_COURTS }, (_, i) => i + 1)}
             hours={Array.from({ length: SLOTS_TOTAL }, (_, i) => HOUR_MIN + i)}
-            isCellBooked={(c, h) => isSlotTaken(c, toTime(h))}
+            isCellBooked={(c, h) => isSlotTaken(c, toTime(h)) && !isSlotHeld(c, toTime(h))}
+            isCellHeld={(c, h) => isSlotHeld(c, toTime(h))}
             isCellSelected={isCellSelected}
             onCellClick={handleCellClick}
             formatHour={formatHour}

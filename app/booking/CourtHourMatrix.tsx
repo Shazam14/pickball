@@ -4,11 +4,10 @@ import styles from './booking.module.css'
 
 export type Slot = { court: number; hour: number }
 
-type RowStatus = 'available' | 'limited' | 'booked'
+type RowStatus = 'available' | 'booked'
 
 const STATUS_BORDER: Record<RowStatus, string> = {
   available: 'transparent',
-  limited: '#f59e0b',
   booked: '#ef4444',
 }
 
@@ -16,6 +15,7 @@ interface Props {
   courts: number[]
   hours: number[]
   isCellBooked: (court: number, hour: number) => boolean
+  isCellHeld: (court: number, hour: number) => boolean
   isCellSelected: (court: number, hour: number) => boolean
   onCellClick: (court: number, hour: number) => void
   formatHour: (h: number) => string
@@ -23,7 +23,7 @@ interface Props {
 }
 
 export default function CourtHourMatrix({
-  courts, hours, isCellBooked, isCellSelected, onCellClick, formatHour, getRowStatus,
+  courts, hours, isCellBooked, isCellHeld, isCellSelected, onCellClick, formatHour, getRowStatus,
 }: Props) {
   return (
     <div className={styles.matrixWrap} data-tour="matrix">
@@ -47,18 +47,18 @@ export default function CourtHourMatrix({
               </td>
               {courts.map(c => {
                 const booked = isCellBooked(c, h)
-                const selected = !booked && isCellSelected(c, h)
-                const rowStatus = getRowStatus?.(h)
-                const limited = !booked && !selected && rowStatus === 'limited'
-                const disabled = booked
+                const held = !booked && isCellHeld(c, h)
+                const selected = !booked && !held && isCellSelected(c, h)
+                const disabled = booked || held
                 const cls = [
                   styles.matrixCell,
                   booked ? styles.matrixCellBooked : '',
+                  held ? styles.matrixCellHeld : '',
                   selected ? styles.matrixCellSelected : '',
-                  limited ? styles.matrixCellLimited : '',
                 ].filter(Boolean).join(' ')
                 let glyph = ''
                 if (booked) glyph = '×'
+                else if (held) glyph = '⏱'
                 else if (selected) glyph = '✓'
                 return (
                   <td

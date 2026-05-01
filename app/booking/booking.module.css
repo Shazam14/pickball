@@ -439,11 +439,6 @@
   outline: none;
 }
 .matrixCell:hover:not([aria-disabled="true"]) { background: rgba(34,197,94,0.18); }
-.matrixCellLimited {
-  background: rgba(245,158,11,0.12) !important;
-  color: rgba(245,158,11,0.7) !important;
-}
-.matrixCellLimited:hover:not([aria-disabled="true"]) { background: rgba(245,158,11,0.28) !important; }
 .matrixCell:focus-visible { box-shadow: inset 0 0 0 2px var(--green); }
 .matrixCellSelected {
   background: var(--green) !important;

@@ -34,20 +34,24 @@ export async function GET(req: NextRequest) {
     return false
   })
 
-  // Build availability matrix: for each court + time slot, is it taken?
-  const takenSlots: Record<number, Set<string>> = {}
+  // Track confirmed (booked) and locked-not-expired (held) hours separately,
+  // per court. A cell is "held" when an active lock covers it but no
+  // confirmed booking does — useful for the matrix to show ⏱ instead of ×.
+  const bookedSlots: Record<number, Set<string>> = {}
+  const heldSlots: Record<number, Set<string>> = {}
 
   for (const b of activeBookings) {
-    if (!takenSlots[b.court_number]) takenSlots[b.court_number] = new Set()
+    const target = b.status === 'confirmed' ? bookedSlots : heldSlots
+    if (!target[b.court_number]) target[b.court_number] = new Set()
     const startHour = parseInt(b.start_time.split(':')[0])
     const endHour = parseInt(b.end_time.split(':')[0])
     for (let h = startHour; h < endHour; h++) {
-      takenSlots[b.court_number].add(`${String(h).padStart(2, '0')}:00`)
+      target[b.court_number].add(`${String(h).padStart(2, '0')}:00`)
     }
   }
 
   // For each time slot, check if selecting it (+ duration) would conflict
-  const slots: Record<string, { court: number; available: boolean }[]> = {}
+  const slots: Record<string, { court: number; available: boolean; held: boolean }[]> = {}
 
   for (const time of TIME_SLOTS) {
     const startHour = parseInt(time.split(':')[0])
@@ -56,17 +60,14 @@ export async function GET(req: NextRequest) {
 
     slots[time] = []
     for (let c = 1; c <= TOTAL_COURTS; c++) {
-      let available = true
-      const courtTaken = takenSlots[c]
-      if (courtTaken) {
-        for (let h = startHour; h < endHour; h++) {
-          if (courtTaken.has(`${String(h).padStart(2, '0')}:00`)) {
-            available = false
-            break
-          }
-        }
+      let isBooked = false
+      let isHeld = false
+      for (let h = startHour; h < endHour; h++) {
+        const key = `${String(h).padStart(2, '0')}:00`
+        if (bookedSlots[c]?.has(key)) { isBooked = true; break }
+        if (heldSlots[c]?.has(key)) { isHeld = true }
       }
-      slots[time].push({ court: c, available })
+      slots[time].push({ court: c, available: !isBooked && !isHeld, held: !isBooked && isHeld })
     }
   }
 
