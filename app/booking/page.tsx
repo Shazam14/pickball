@@ -101,21 +101,24 @@ function groupRanges(picks: Slot[]): { court: number; start: number; end: number
   return out.sort((a, b) => a.court - b.court || a.start - b.start)
 }
 
-function RateGuide({ date, holidays, picksMade }: { date: string; holidays: Set<string>; picksMade: boolean }) {
+function RateGuide({ date, holidays, picks }: { date: string; holidays: Set<string>; picks: Slot[] }) {
   const d = new Date(date + 'T00:00:00')
   const dow = d.getDay()
   const isWeekend = dow === 0 || dow === 6
   const isHoliday = holidays.has(date)
   const isFlatDay = isWeekend || isHoliday
 
+  const hasOffpeakPick = picks.some(p => p.hour < 16)
+  const hasPeakPick = picks.some(p => p.hour >= 16)
+
   const ctxLabel = isHoliday ? `${DOW[dow].toUpperCase()} · HOLIDAY`
     : isWeekend ? `${DOW[dow].toUpperCase()} · WEEKEND`
     : `${DOW[dow].toUpperCase()} · WEEKDAY`
 
   const tiers = [
-    { key: 'weekday-am', label: 'Weekday',          meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,  active: picksMade && !isFlatDay },
-    { key: 'weekday-pm', label: 'Weekday',          meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR, active: picksMade && !isFlatDay },
-    { key: 'flat',       label: 'Weekend / Holiday', meta: 'Sat–Sun · PH/Cebu',  price: COURT_PRICE_PER_HOUR, active: picksMade && isFlatDay },
+    { key: 'weekday-am', label: 'Weekday',          meta: 'Mon–Fri · 8AM–4PM',  price: COURT_PRICE_OFFPEAK,  active: !isFlatDay && hasOffpeakPick },
+    { key: 'weekday-pm', label: 'Weekday',          meta: 'Mon–Fri · 4PM–12AM', price: COURT_PRICE_PER_HOUR, active: !isFlatDay && hasPeakPick },
+    { key: 'flat',       label: 'Weekend / Holiday', meta: 'Sat–Sun · PH/Cebu',  price: COURT_PRICE_PER_HOUR, active: isFlatDay && picks.length > 0 },
   ]
 
   return (
@@ -502,6 +505,11 @@ export default function ConceptDBookingPage() {
   return (
     <>
       <Nav />
+      {phase === 'details' && lockData && (
+        <div className={styles.holdBar}>
+          <HoldBadge lockedUntil={lockData.lockedUntil} onExpire={handleExpire} />
+        </div>
+      )}
       <div className={styles.page}>
         <div className={styles.header}>
           <div className={styles.headerTop}>
@@ -570,7 +578,7 @@ export default function ConceptDBookingPage() {
         )}
 
         {/* RATE GUIDE — Phase 1 only */}
-        {phase === 'review' && <RateGuide date={date} holidays={holidays} picksMade={picks.length > 0} />}
+        {phase === 'review' && <RateGuide date={date} holidays={holidays} picks={picks} />}
 
         {/* MATRIX — Phase 1 only */}
         {phase === 'review' && (
@@ -664,7 +672,6 @@ export default function ConceptDBookingPage() {
             <button type="button" className={styles.backLink} onClick={() => window.history.back()}>
               ← Back to selection
             </button>
-            {lockData && <HoldBadge lockedUntil={lockData.lockedUntil} onExpire={handleExpire} />}
             <div className={styles.sectionLabel}>03 — Your Details</div>
 
             {!payOnsite && (
