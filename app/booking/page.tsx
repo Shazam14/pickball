@@ -763,21 +763,6 @@ export default function ConceptDBookingPage() {
                   </div>
                 </div>
 
-                <div className={styles.playersHeader} style={{ marginTop: 14 }}>
-                  <div>
-                    <div className={styles.playersHeaderTitle}>How many players?</div>
-                    <div className={styles.playersHeaderHint}>₱{ENTRANCE_FEE_PER_PERSON}/head — cash on arrival at the front desk</div>
-                  </div>
-                  <div className={styles.stepper}>
-                    <button type="button" className={styles.stepperBtn}
-                      onClick={() => setPlayers(p => Math.max(1, p - 1))}
-                      disabled={players <= 1} aria-label="Decrease players">–</button>
-                    <span className={styles.stepperValue}>{players}</span>
-                    <button type="button" className={styles.stepperBtn}
-                      onClick={() => setPlayers(p => Math.min(20, p + 1))}
-                      disabled={players >= 20} aria-label="Increase players">+</button>
-                  </div>
-                </div>
               </>
             )}
           </div>

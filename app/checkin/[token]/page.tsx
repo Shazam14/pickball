@@ -96,7 +96,7 @@ export default async function CheckinPage({ params }: { params: Promise<{ token:
     .order('court_number', { ascending: true })
 
   const courts = (courtRows ?? [{ court_number: booking.court_number }])
-    .map(r => `SO${r.court_number}`)
+    .map(r => `COURT ${r.court_number}`)
     .join(', ')
 
   const name = player.full_name || booking.customer_name
