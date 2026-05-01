@@ -1,16 +1,35 @@
 import { test } from '@playwright/test';
 
-// Visual mobile QA — full-page screenshots of every public page.
+// Visual mobile QA — full-page screenshots of the new toggle + phased flow.
 // Run with: npx playwright test booking-mobile --project="Pixel 7"
 
+// Mock site APIs so screenshots don't depend on real DB state.
+async function mockSiteApis(page) {
+  await page.route('**/api/availability**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ slots: {} }),
+    });
+  });
+  await page.route('**/api/holidays**', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ dates: [] }),
+    });
+  });
+}
+
 // Suppress the first-visit auto-tour so it doesn't cover click targets.
-test.beforeEach(async ({ context }) => {
+test.beforeEach(async ({ context, page }) => {
   await context.addInitScript(() => {
     try {
       localStorage.setItem('pickball:tour:a:seen', '1');
       localStorage.setItem('pickball:tour:b:seen', '1');
     } catch {}
   });
+  await mockSiteApis(page);
 });
 
 test.describe('mobile @ 375 (iPhone SE width)', () => {
@@ -28,23 +47,22 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.screenshot({ path: 'test-results/m375-booking-01-initial.png', fullPage: true });
   });
 
-  test('booking — matrix cell click (PG.1) → continue → fills form', async ({ page }) => {
+  test('booking — phase 1: pick a slot', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
-    // Jump to next month + first day for a clean availability slate.
-    await page.getByRole('button', { name: 'Next month' }).click();
-    await page.waitForTimeout(200);
-    await page.locator('button[class*="dayCard"]').first().click();
-    await page.waitForTimeout(500);
-
-    // Phase 1: tap (Court 1, 7AM).
-    await page.locator('[aria-label="Court 1 at 7AM"]').click();
+    // Tap (Court 5, 11AM).
+    await page.locator('[aria-label="Court 5 at 11AM"]').click();
     await page.waitForTimeout(200);
     await page.screenshot({ path: 'test-results/m375-booking-02-phase1.png', fullPage: true });
+  });
 
-    // Continue → phase 2.
-    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+  test('booking — phase 2: details + filled form', async ({ page }) => {
+    await page.goto('http://localhost:3000/booking');
+    await page.waitForLoadState('networkidle');
+
+    await page.locator('[aria-label="Court 5 at 11AM"]').click();
+    await page.getByRole('button', { name: 'Continue →' }).click();
     await page.waitForTimeout(300);
 
     await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
@@ -53,47 +71,32 @@ test.describe('mobile @ 375 (iPhone SE width)', () => {
     await page.getByPlaceholder('Juan dela Cruz').fill('Juan dela Cruz');
     await page.getByPlaceholder('+63 9XX XXX XXXX').fill('+63 9171234567');
     await page.getByPlaceholder('juan@email.com').fill('juan@example.com');
-    await page.locator('[aria-label="Increase players"]').click();
 
     await page.screenshot({ path: 'test-results/m375-booking-04-filled.png', fullPage: true });
-
-    const confirmPanel = page.locator('[class*="confirmPanel"]');
-    if (await confirmPanel.count() > 0) {
-      await confirmPanel.screenshot({ path: 'test-results/m375-booking-05-confirm.png' });
-    }
   });
 
-  test('booking — multi-court via phase 2 + multi-hour duration', async ({ page }) => {
+  test('booking — multi-range across two courts', async ({ page }) => {
     await page.goto('http://localhost:3000/booking');
     await page.waitForLoadState('networkidle');
 
-    // Jump to next month + first day for a clean availability slate.
-    await page.getByRole('button', { name: 'Next month' }).click();
-    await page.waitForTimeout(200);
-    await page.locator('button[class*="dayCard"]').first().click();
-    await page.waitForTimeout(500);
-
-    // Phase 1: anchor at (Court 1, 7AM).
-    await page.locator('[aria-label="Court 1 at 7AM"]').click();
-    // Bump duration to 3h via stepper — anchor column lights up 7AM–10AM.
-    await page.locator('[aria-label="Increase duration"]').click();
-    await page.locator('[aria-label="Increase duration"]').click();
-
-    // Continue to phase 2.
-    await page.getByRole('button', { name: /Continue → Choose Courts/ }).click();
+    // Two adjacent on SO5 (merge into one range), one on SO6 (separate range).
+    await page.locator('[aria-label="Court 5 at 8AM"]').click();
+    await page.locator('[aria-label="Court 5 at 9AM"]').click();
+    await page.locator('[aria-label="Court 6 at 2PM"]').click();
     await page.waitForTimeout(200);
 
-    // Add SO2 via header — both courts now span 7AM–10AM.
-    await page.locator('[aria-label="Toggle Court 2"]').click();
-    await page.waitForTimeout(300);
+    await page.screenshot({ path: 'test-results/m375-booking-05-multirange.png', fullPage: true });
+  });
 
-    await page.getByText('03 — Your Details').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: 'test-results/m375-booking-06-multicourt.png', fullPage: true });
+  test('booking — pay-onsite mode (review)', async ({ page }) => {
+    await page.goto('http://localhost:3000/booking');
+    await page.waitForLoadState('networkidle');
 
-    const confirmPanel = page.locator('[class*="confirmPanel"]');
-    if (await confirmPanel.count() > 0) {
-      await confirmPanel.screenshot({ path: 'test-results/m375-booking-07-multicourt-confirm.png' });
-    }
+    await page.locator('[aria-label="Court 5 at 11AM"]').click();
+    await page.getByRole('button', { name: 'Toggle pay entrance onsite' }).click();
+    await page.waitForTimeout(200);
+
+    await page.screenshot({ path: 'test-results/m375-booking-06-onsite-review.png', fullPage: true });
   });
 });
 
