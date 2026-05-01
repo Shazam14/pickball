@@ -5,7 +5,7 @@ import Link from 'next/link'
 import Nav from '@/components/Nav'
 import { LobbyPlanButton } from '@/components/LobbyPlan'
 import CourtHourMatrix, { type Slot } from './CourtHourMatrix'
-import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
+import { TOTAL_COURTS, ENTRANCE_FEE_PER_PERSON, priceForHour } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
@@ -42,8 +42,8 @@ function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
 const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
 const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December']
 const MAX_DAYS_AHEAD = 60
-const HOUR_MIN = 6
-const HOUR_MAX = 22
+const HOUR_MIN = 8
+const HOUR_MAX = 24
 const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN
 
 function buildMonthDays(year: number, month: number) {
@@ -98,9 +98,10 @@ export default function ConceptDBookingPage() {
   const [loading, setLoading] = useState(false)
   const [picks, setPicks] = useState<Slot[]>([])
   const [players, setPlayers] = useState(4)
+  const [holidays, setHolidays] = useState<Set<string>>(new Set())
 
   const totalHours = picks.length
-  const courtFee = totalHours * COURT_PRICE_PER_HOUR
+  const courtFee = picks.reduce((sum, p) => sum + priceForHour(date, p.hour, holidays), 0)
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const price = courtFee + entranceFee
 
@@ -131,6 +132,17 @@ export default function ConceptDBookingPage() {
     setPicks([])
     fetchAvailability(date)
   }, [date, fetchAvailability])
+
+  // On mount: fetch holidays for current + next year.
+  useEffect(() => {
+    const thisYear = new Date().getFullYear()
+    Promise.all([
+      fetch(`/api/holidays?year=${thisYear}`).then(r => r.json()),
+      fetch(`/api/holidays?year=${thisYear + 1}`).then(r => r.json()),
+    ]).then(([a, b]) => {
+      setHolidays(new Set<string>([...(a.dates || []), ...(b.dates || [])]))
+    }).catch(() => {})
+  }, [])
 
   // On mount: prefetch today + 6 upcoming days.
   useEffect(() => {
@@ -308,7 +320,8 @@ export default function ConceptDBookingPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
               {ranges.map(r => {
                 const hours = r.end - r.start + 1
-                const fee = hours * COURT_PRICE_PER_HOUR
+                let fee = 0
+                for (let h = r.start; h <= r.end; h++) fee += priceForHour(date, h, holidays)
                 const key = `${r.court}-${r.start}-${r.end}`
                 return (
                   <div key={key} style={{

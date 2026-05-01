@@ -32,7 +32,18 @@ const TEST_COURT = 9;
 const TEST_HOUR = '15:00';
 const DURATION = 2;
 const PLAYERS = 3;
-const EXPECTED_TOTAL = 1 * DURATION * 700 + PLAYERS * 50; // 1400 + 150 = 1550
+
+// Mirrors lib/types.ts priceForHour. No holiday list here — booking 14 days out,
+// scripts/demo dates won't coincide with PH holidays in practice.
+function priceForHour(dateStr, hour) {
+  const dow = new Date(dateStr + 'T00:00:00').getDay();
+  if (dow === 0 || dow === 6) return 700;
+  return hour < 16 ? 600 : 700;
+}
+const startHour = parseInt(TEST_HOUR.split(':')[0]);
+let _courtFee = 0;
+for (let h = startHour; h < startHour + DURATION; h++) _courtFee += priceForHour(date, h);
+const EXPECTED_TOTAL = _courtFee + PLAYERS * 50;
 
 async function cleanup() {
   await supabase.from('bookings')

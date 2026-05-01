@@ -86,12 +86,12 @@ export default function Home() {
         <Link href="/booking" className={`${styles.mobileTile} ${styles.mobileTilePrimary}`}>
           <div className={styles.mobileTileLabel}>Book Now</div>
           <div className={styles.mobileTileTitle}>Reserve a Court</div>
-          <div className={styles.mobileTileMeta}>₱700/hr · Real-time availability</div>
+          <div className={styles.mobileTileMeta}>₱600–700/hr · Real-time availability</div>
         </Link>
         <Link href="/facilities" className={styles.mobileTile}>
           <div className={styles.mobileTileLabel}>Explore</div>
           <div className={styles.mobileTileTitle}>Facilities</div>
-          <div className={styles.mobileTileMeta}>10 courts · Café · 24/7 access</div>
+          <div className={styles.mobileTileMeta}>10 courts · Café · 8AM–12AM daily</div>
         </Link>
       </div>
 
@@ -107,7 +107,7 @@ export default function Home() {
               <span className={styles.heroGreen}>Pickleball</span> Courts
             </h1>
             <p className={styles.heroDesc}>
-              10 professional courts · Open 24/7 · Instant booking
+              10 professional courts · Open 8AM–12AM · Instant booking
             </p>
             <div className={styles.heroBtns}>
               <Link href="/booking" className="btn-primary" style={{ fontSize: 20, padding: '18px 56px', letterSpacing: 3 }}>
@@ -118,7 +118,7 @@ export default function Home() {
               </Link>
             </div>
             <div className={styles.heroMeta}>
-              <span>₱700/hr</span>
+              <span>₱600–700/hr</span>
               <span className={styles.heroDot}>·</span>
               <span>₱50 entrance</span>
               <span className={styles.heroDot}>·</span>
@@ -140,12 +140,12 @@ export default function Home() {
         <div className={styles.infoDivider} />
         <div className={styles.infoItem}>
           <span className={styles.infoIcon}><IconClock /></span>
-          <span>Open 24/7</span>
+          <span>Open 8AM–12AM</span>
         </div>
         <div className={styles.infoDivider} />
         <div className={styles.infoItem}>
           <span className={styles.infoIcon}><IconPeso /></span>
-          <span>₱700/hr · ₱50 entrance per head</span>
+          <span>₱600–700/hr · ₱50 entrance per head</span>
         </div>
       </div>
 

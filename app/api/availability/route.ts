@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { TIME_SLOTS, TOTAL_COURTS } from '@/lib/types'
+import { TIME_SLOTS, TOTAL_COURTS, CLOSE_HOUR } from '@/lib/types'
 
 // GET /api/availability?date=YYYY-MM-DD&duration=1
 export async function GET(req: NextRequest) {
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
   for (const time of TIME_SLOTS) {
     const startHour = parseInt(time.split(':')[0])
     const endHour = startHour + duration
-    if (endHour > 22) continue // past closing
+    if (endHour > CLOSE_HOUR) continue // past closing
 
     slots[time] = []
     for (let c = 1; c <= TOTAL_COURTS; c++) {

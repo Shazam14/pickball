@@ -7,7 +7,7 @@ import BookingModal from '@/components/BookingModal'
 import TourButton, { type TourStep } from '@/components/TourButton'
 import { LobbyPlanButton } from '@/components/LobbyPlan'
 import CourtHourMatrix from './CourtHourMatrix'
-import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
+import { TOTAL_COURTS, COURT_PRICE_PER_HOUR, COURT_PRICE_OFFPEAK, ENTRANCE_FEE_PER_PERSON, courtFeeFor } from '@/lib/types'
 import { getSupabase } from '@/lib/supabase'
 import styles from './booking.module.css'
 
@@ -67,8 +67,8 @@ function getTimeStatus(time: string, slots: SlotMatrix): TimeStatus {
 
 function toTime(h: number) { return `${String(h).padStart(2,'0')}:00` }
 
-const HOUR_MIN = 6
-const HOUR_MAX = 22  // exclusive — last possible end-time is 22:00 (10 PM)
+const HOUR_MIN = 8
+const HOUR_MAX = 24  // exclusive — last possible end-time is 24:00 (midnight)
 const SLOTS_TOTAL = HOUR_MAX - HOUR_MIN  // 16
 
 const TOUR_A_STEPS: TourStep[] = [
@@ -92,7 +92,7 @@ const TOUR_A_STEPS: TourStep[] = [
     element: '[data-tour="players"]',
     popover: {
       title: 'How many players?',
-      description: `₱${ENTRANCE_FEE_PER_PERSON} entrance per head — separate from the ₱${COURT_PRICE_PER_HOUR}/hr court fee.`,
+      description: `₱${ENTRANCE_FEE_PER_PERSON} entrance per head — separate from the ₱${COURT_PRICE_OFFPEAK}–${COURT_PRICE_PER_HOUR}/hr court fee.`,
       side: 'left', align: 'center',
     },
   },
@@ -137,6 +137,7 @@ export default function BookingPage() {
   const [customerEmail, setCustomerEmail] = useState('')
   const [players, setPlayers] = useState(4)
   const [playerNames, setPlayerNames] = useState<string[]>(() => Array(3).fill(''))
+  const [holidays, setHolidays] = useState<Set<string>>(new Set())
 
   const phase: 'time' | 'courts' = endH === null ? 'time' : 'courts'
   const startH: number | null =
@@ -147,7 +148,7 @@ export default function BookingPage() {
   const selectedStart = startH === null ? null : toTime(startH)
   const endTime = endHExcl === null ? null : toTime(endHExcl)
 
-  const courtFee = duration * COURT_PRICE_PER_HOUR * selectedCourts.length
+  const courtFee = startH === null ? 0 : courtFeeFor(date, startH, duration, selectedCourts.length, holidays)
   const entranceFee = players * ENTRANCE_FEE_PER_PERSON
   const price = courtFee + entranceFee
 
@@ -192,6 +193,17 @@ export default function BookingPage() {
     setEndH(null)
     fetchAvailability(date)
   }, [date, fetchAvailability])
+
+  // On mount: fetch holidays for current + next year (covers booking range).
+  useEffect(() => {
+    const thisYear = new Date().getFullYear()
+    Promise.all([
+      fetch(`/api/holidays?year=${thisYear}`).then(r => r.json()),
+      fetch(`/api/holidays?year=${thisYear + 1}`).then(r => r.json()),
+    ]).then(([a, b]) => {
+      setHolidays(new Set<string>([...(a.dates || []), ...(b.dates || [])]))
+    }).catch(() => {})
+  }, [])
 
   // On mount: prefetch today + 6 upcoming days.
   useEffect(() => {

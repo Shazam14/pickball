@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
-import { COURT_PRICE_PER_HOUR, ENTRANCE_FEE_PER_PERSON } from '@/lib/types'
+import { ENTRANCE_FEE_PER_PERSON, courtFeeFor } from '@/lib/types'
+import { getHolidays } from '@/lib/holidays'
 import { sendConfirmationEmail, sendConfirmationSMS } from '@/lib/notifications'
 
 /**
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
   // Pull all currently-locked bookings whose lock has not yet expired.
   const { data: locked, error: fetchError } = await supabase
     .from('bookings')
-    .select('reference, court_number, duration, players, locked_until, status')
+    .select('reference, court_number, booking_date, start_time, duration, players, locked_until, status')
     .eq('status', 'locked')
 
   if (fetchError) {
@@ -76,7 +77,10 @@ export async function POST(req: NextRequest) {
     const courts = rows.length
     const hours = rows[0].duration
     const players = rows[0].players
-    const total = courts * hours * COURT_PRICE_PER_HOUR + players * ENTRANCE_FEE_PER_PERSON
+    const date = rows[0].booking_date as string
+    const startHour = parseInt((rows[0].start_time as string).split(':')[0])
+    const holidays = await getHolidays(parseInt(date.slice(0, 4)))
+    const total = courtFeeFor(date, startHour, hours, courts, holidays) + players * ENTRANCE_FEE_PER_PERSON
     if (Math.abs(total - amount) <= AMOUNT_TOLERANCE) {
       candidates.push({ reference: ref, total })
     }

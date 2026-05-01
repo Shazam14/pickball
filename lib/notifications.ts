@@ -1,6 +1,7 @@
 import { Resend } from 'resend'
 import QRCode from 'qrcode'
-import { Booking } from './types'
+import { Booking, courtFeeFor, ENTRANCE_FEE_PER_PERSON } from './types'
+import { getHolidays } from './holidays'
 
 type Player = { full_name: string | null; checkin_token: string }
 
@@ -23,7 +24,11 @@ export async function sendConfirmationEmail(
   if (!booking.customer_email) return
 
   const courts = courtNumbers.length
-  const total = courts * booking.duration * 700 + booking.players * 50
+  const startHour = parseInt(booking.start_time.split(':')[0])
+  const year = parseInt(booking.booking_date.slice(0, 4))
+  const holidays = await getHolidays(year)
+  const courtFee = courtFeeFor(booking.booking_date, startHour, booking.duration, courts, holidays)
+  const total = courtFee + booking.players * ENTRANCE_FEE_PER_PERSON
   const courtLabel = courts === 1
     ? `Court ${courtNumbers[0]}`
     : `Courts ${courtNumbers.join(', ')}`
@@ -117,7 +122,11 @@ export async function sendConfirmationSMS(booking: Booking) {
   const apiKey = process.env.SEMAPHORE_API_KEY
   if (!apiKey) return
 
-  const total = booking.duration * 700 + booking.players * 50
+  const startHour = parseInt(booking.start_time.split(':')[0])
+  const year = parseInt(booking.booking_date.slice(0, 4))
+  const holidays = await getHolidays(year)
+  const courtFee = courtFeeFor(booking.booking_date, startHour, booking.duration, 1, holidays)
+  const total = courtFee + booking.players * ENTRANCE_FEE_PER_PERSON
   const message =
     `SideOut Booking Confirmed!\n` +
     `Ref: ${booking.reference}\n` +
