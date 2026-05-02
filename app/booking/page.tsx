@@ -593,10 +593,7 @@ export default function ConceptDBookingPage() {
                 <span>Tap any vacant cell to add a 1-hour slot. Tap a selected cell to remove it.</span>
               )}
               {picks.length > 0 && (
-                <>
-                  <span className={styles.hintGreen}>{picks.length} {picks.length === 1 ? 'slot' : 'slots'} · {ranges.length} {ranges.length === 1 ? 'range' : 'ranges'}</span>
-                  {' · '}{totalHours}h total · ₱{courtFee.toLocaleString()} court fee
-                </>
+                <span className={styles.hintGreen}>{totalHours}h total · ₱{courtFee.toLocaleString()} court fee</span>
               )}
             </div>
             {picks.length > 0 && (
@@ -814,9 +811,6 @@ export default function ConceptDBookingPage() {
                 </button>
               )}
               <div className={styles.confirmPrice}>₱{onlineDue.toLocaleString()} <span>{payOnsite ? 'due online' : 'preview'}</span></div>
-              {payOnsite && (
-                <div className={styles.onsiteDueLine}>+ ₱{entranceFee.toLocaleString()} cash on arrival</div>
-              )}
               {phase === 'review' ? (
                 <>
                   {lockError && <div className={styles.lockError}>{lockError}</div>}
