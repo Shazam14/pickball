@@ -584,6 +584,7 @@ export default function ConceptDBookingPage() {
           </div>
           <div className={styles.legend}>
             <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotGreen}`} />Available</div>
+            <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotAmber}`} />On Hold</div>
             <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotRed}`} />Fully Booked</div>
           </div>
           <div className={styles.matrixHint} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
