@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getSupabaseAdmin } from '@/lib/supabase'
 import { LockSlotRequest, LockSlotRange, LOCK_DURATION_MINUTES } from '@/lib/types'
+import { hoursOverlap } from '@/lib/booking-conflict'
 
 // POST /api/lock-slot
 export async function POST(req: NextRequest) {
@@ -60,8 +61,7 @@ export async function POST(req: NextRequest) {
   const hasConflict = ranges2.some(req =>
     active.some(ex =>
       ex.court_number === req.court_number &&
-      ex.start_time < req.end_time &&
-      ex.end_time > req.start_time
+      hoursOverlap(ex.start_time, ex.end_time, req.start_time, req.end_time)
     )
   )
   if (hasConflict) {
