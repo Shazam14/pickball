@@ -22,7 +22,18 @@ interface Booking {
   created_at: string
 }
 
-type Tab = 'pending' | 'confirmed' | 'all' | 'feedback'
+type Tab = 'pending' | 'confirmed' | 'all' | 'feedback' | 'walkins'
+
+interface Walkin {
+  id: string
+  reference: string
+  party_size: number
+  paid_amount_php: number
+  created_at: string
+  created_by: string | null
+  tickets_total: number
+  tickets_redeemed: number
+}
 
 interface FeedbackComment {
   id: string
@@ -54,6 +65,8 @@ export default function AdminPage() {
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<FeedbackComment[]>([])
   const [feedbackLoading, setFeedbackLoading] = useState(false)
+  const [walkins, setWalkins] = useState<Walkin[]>([])
+  const [walkinsLoading, setWalkinsLoading] = useState(false)
 
   const fetchFeedback = useCallback(async () => {
     setFeedbackLoading(true)
@@ -76,6 +89,18 @@ export default function AdminPage() {
     if (res.ok) fetchFeedback()
   }
 
+  const fetchWalkins = useCallback(async (k: string) => {
+    setWalkinsLoading(true)
+    try {
+      const res = await fetch(`/api/admin/walkin?key=${encodeURIComponent(k)}`)
+      if (!res.ok) return
+      const data = await res.json()
+      setWalkins(data.walkins || [])
+    } finally {
+      setWalkinsLoading(false)
+    }
+  }, [])
+
   const fetchBookings = useCallback(async (k: string) => {
     setLoading(true)
     try {
@@ -92,9 +117,10 @@ export default function AdminPage() {
     if (!authed) return
     fetchBookings(key)
     fetchFeedback()
+    fetchWalkins(key)
     const interval = setInterval(() => fetchBookings(key), 30000)
     return () => clearInterval(interval)
-  }, [authed, key, fetchBookings, fetchFeedback])
+  }, [authed, key, fetchBookings, fetchFeedback, fetchWalkins])
 
   async function handleLogin() {
     setAuthError('')
@@ -171,21 +197,53 @@ export default function AdminPage() {
         }}>
           ↗ QR Check-In Test
         </Link>
+        <Link href="/admin/walkin/new" style={{
+          fontSize: 11, letterSpacing: 1.5, textTransform: 'uppercase', textDecoration: 'none',
+          padding: '6px 10px', border: '1px solid #166534', color: '#22c55e', background: '#0a0a0a',
+        }}>
+          + Walk-in: New Ticket
+        </Link>
       </div>
 
       <div className={styles.tabs}>
-        {(['pending', 'confirmed', 'all', 'feedback'] as Tab[]).map(t => (
+        {(['pending', 'confirmed', 'all', 'feedback', 'walkins'] as Tab[]).map(t => (
           <button key={t} className={`${styles.tab} ${tab === t ? styles.tabActive : ''}`} onClick={() => setTab(t)}>
             {t.charAt(0).toUpperCase() + t.slice(1)}
             {t === 'pending' && pending.length > 0 && <span className={styles.badge}>{pending.length}</span>}
             {t === 'feedback' && feedback.filter(f => f.status === 'open').length > 0 && (
               <span className={styles.badge}>{feedback.filter(f => f.status === 'open').length}</span>
             )}
+            {t === 'walkins' && walkins.length > 0 && <span className={styles.badge}>{walkins.length}</span>}
           </button>
         ))}
       </div>
 
-      {tab === 'feedback' ? (
+      {tab === 'walkins' ? (
+        walkinsLoading ? (
+          <div className={styles.empty}>Loading…</div>
+        ) : walkins.length === 0 ? (
+          <div className={styles.empty}>No walk-ins today yet.</div>
+        ) : (
+          <div className={styles.list}>
+            {walkins.map(w => (
+              <div key={w.id} className={styles.card}>
+                <div className={styles.cardTop}>
+                  <div className={styles.ref}>{w.reference}</div>
+                  <span className={styles.statusBadge}>
+                    {w.tickets_redeemed}/{w.tickets_total} redeemed
+                  </span>
+                </div>
+                <div className={styles.cardGrid}>
+                  <div className={styles.field}><div className={styles.fieldLabel}>Party</div><div className={styles.fieldVal}>{w.party_size}</div></div>
+                  <div className={styles.field}><div className={styles.fieldLabel}>Cash</div><div className={styles.fieldVal}>₱{w.paid_amount_php}</div></div>
+                  <div className={styles.field}><div className={styles.fieldLabel}>By</div><div className={styles.fieldVal}>{w.created_by || '—'}</div></div>
+                  <div className={styles.field}><div className={styles.fieldLabel}>Issued</div><div className={styles.fieldVal}>{new Date(w.created_at).toLocaleTimeString('en-PH', { timeZone: 'Asia/Manila', hour: 'numeric', minute: '2-digit' })}</div></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      ) : tab === 'feedback' ? (
         feedbackLoading ? (
           <div className={styles.empty}>Loading…</div>
         ) : feedback.length === 0 ? (
