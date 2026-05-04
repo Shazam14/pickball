@@ -420,6 +420,32 @@ export default function ConceptDBookingPage() {
     window.history.pushState({ step: 'modal' }, '', window.location.href)
   }
 
+  // In-page "Back to selection": transition directly instead of relying on
+  // window.history.back(), which can escape /booking when the prior history
+  // entry isn't this page. Lock is cancelled here; replaceState drops the
+  // {step:'details'} marker so a stale forward-nav can't re-show details.
+  function handleBackToReview() {
+    setShowModal(false)
+    setPhase('review')
+    const live = lockData
+    if (live) {
+      setLockData(null)
+      fetch('/api/cancel-lock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: live.reference }),
+      })
+        .catch(() => {})
+        .finally(() => {
+          cacheRef.current.delete(date)
+          fetchAvailability(date, { background: true })
+        })
+    }
+    if (window.history.state?.step) {
+      window.history.replaceState(null, '', window.location.href)
+    }
+  }
+
   function handleExpire() {
     setShowModal(false); setLockData(null)
     setPicks([])
@@ -663,7 +689,7 @@ export default function ConceptDBookingPage() {
         {/* DETAILS — only after Continue */}
         {phase === 'details' && picks.length > 0 && (
           <div className={styles.detailsSection}>
-            <button type="button" className={styles.backLink} onClick={() => window.history.back()}>
+            <button type="button" className={styles.backLink} onClick={handleBackToReview}>
               ← Back to selection
             </button>
             <div className={styles.detailsHeader}>
