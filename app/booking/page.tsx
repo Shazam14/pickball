@@ -182,13 +182,13 @@ export default function ConceptDBookingPage() {
   const [slots, setSlots] = useState<SlotMatrix>({})
   const [loading, setLoading] = useState(false)
   const [picks, setPicks] = useState<Slot[]>([])
-  const [players, setPlayers] = useState(4)
+  const [players, setPlayers] = useState(1)
   const [payOnsite, setPayOnsite] = useState(false)
   const [holidays, setHolidays] = useState<Set<string>>(new Set())
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
-  const [playerNames, setPlayerNames] = useState<string[]>(() => Array(3).fill(''))
+  const [playerNames, setPlayerNames] = useState<string[]>(() => [])
   const [phase, setPhase] = useState<'review' | 'details'>('review')
   const [locking, setLocking] = useState(false)
   const [lockError, setLockError] = useState('')
@@ -199,7 +199,8 @@ export default function ConceptDBookingPage() {
   const formValid =
     customerName.trim().length > 0 &&
     customerPhone.trim().length > 0 &&
-    customerEmail.trim().length > 0
+    customerEmail.trim().length > 0 &&
+    (payOnsite || playerNames.every(n => n.trim().length > 0))
 
   // Keep playerNames length in sync with players (preserves typed values).
   useEffect(() => {
@@ -725,7 +726,7 @@ export default function ConceptDBookingPage() {
                     </div>
                     <div className={styles.playerCardFields}>
                       <div className={styles.field}>
-                        <label className="field-label">Name (optional)</label>
+                        <label className="field-label">Name *</label>
                         <input className="field-input" value={name}
                           onChange={e => setPlayerNames(prev => prev.map((n, j) => j === i ? e.target.value : n))}
                           placeholder={`Player ${i + 2} name`} />
