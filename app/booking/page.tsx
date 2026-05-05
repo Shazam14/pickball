@@ -130,7 +130,6 @@ function RateGuide({ date, holidays, picks }: { date: string; holidays: Set<stri
       <div className={styles.rateChips}>
         {tiers.map(t => (
           <div key={t.key} className={`${styles.rateChip} ${t.active ? styles.rateChipActive : ''}`}>
-            <span className={styles.rateChipDot} />
             <div className={styles.rateChipBody}>
               <div className={styles.rateChipLabel}>{t.label}</div>
               <div className={styles.rateChipMeta}>{t.meta}</div>
