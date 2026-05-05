@@ -75,6 +75,12 @@ export async function POST(req: NextRequest) {
 
   const lead = confirmedRows[0]
   const courtNumbers = confirmedRows.map(b => b.court_number)
+  const selections = confirmedRows.map(b => ({
+    court_number: b.court_number,
+    start_time: b.start_time,
+    end_time: b.end_time,
+    duration: b.duration,
+  }))
 
   // Auto-create booking_players rows ONCE per reference (not per court).
   // Anchor to the lead row (lowest court_number). Skip if already inserted.
@@ -103,7 +109,7 @@ export async function POST(req: NextRequest) {
 
   // Send notifications ONCE per reference (non-blocking).
   Promise.allSettled([
-    sendConfirmationEmail(lead, courtNumbers, insertedPlayers),
+    sendConfirmationEmail(lead, selections, insertedPlayers),
     sendConfirmationSMS(lead),
   ])
 

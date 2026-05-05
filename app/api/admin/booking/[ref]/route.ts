@@ -217,13 +217,21 @@ export async function PATCH(
 
   const confirmedRows = (updated ?? []).filter(r => r.status === 'confirmed') as Booking[]
   if (confirmedRows.length > 0 && confirmedRows[0].customer_email) {
-    const courts = confirmedRows.map(r => r.court_number).sort((a, b) => a - b)
+    const selections = confirmedRows
+      .slice()
+      .sort((a, b) => a.court_number - b.court_number)
+      .map(r => ({
+        court_number: r.court_number,
+        start_time: r.start_time,
+        end_time: r.end_time,
+        duration: r.duration,
+      }))
     const { data: playerRows } = await sb
       .from('booking_players')
       .select('full_name, checkin_token')
       .in('booking_id', confirmedRows.map(r => r.id))
     try {
-      await sendConfirmationEmail(confirmedRows[0], courts, playerRows ?? [])
+      await sendConfirmationEmail(confirmedRows[0], selections, playerRows ?? [])
     } catch (e) {
       // Don't fail the edit if email send fails — surface it to the client.
       return NextResponse.json({

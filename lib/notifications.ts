@@ -4,6 +4,7 @@ import { Booking, courtFeeFor, ENTRANCE_FEE_PER_PERSON } from './types'
 import { getHolidays } from './holidays'
 
 type Player = { full_name: string | null; checkin_token: string }
+type Selection = { court_number: number; start_time: string; end_time: string; duration: number }
 
 function getResend() {
   return new Resend(process.env.RESEND_API_KEY!)
@@ -18,18 +19,24 @@ function formatTime(t: string): string {
 // ── EMAIL ──────────────────────────────────────────────────────────────────
 export async function sendConfirmationEmail(
   booking: Booking,
-  courtNumbers: number[],
+  selections: Selection[],
   players: Player[]
 ) {
   if (!booking.customer_email) return
 
   players = players.filter(p => p.full_name && p.full_name.trim().length > 0)
 
+  const courtNumbers = selections.map(s => s.court_number)
   const courts = courtNumbers.length
-  const startHour = parseInt(booking.start_time.split(':')[0])
   const year = parseInt(booking.booking_date.slice(0, 4))
   const holidays = await getHolidays(year)
-  const courtFee = courtFeeFor(booking.booking_date, startHour, booking.duration, courts, holidays)
+  // Sum per-selection fees so multi-range bookings (different times per court)
+  // price correctly. Single-range bookings are unaffected.
+  const selectionsWithFee = selections.map(s => ({
+    ...s,
+    fee: courtFeeFor(booking.booking_date, parseInt(s.start_time.split(':')[0]), s.duration, 1, holidays),
+  }))
+  const courtFee = selectionsWithFee.reduce((sum, s) => sum + s.fee, 0)
   const onsiteEntrance = booking.pay_mode === 'onsite_entrance'
   const entranceFee = booking.players * ENTRANCE_FEE_PER_PERSON
   const total = courtFee + (onsiteEntrance ? 0 : entranceFee)
@@ -82,7 +89,17 @@ export async function sendConfirmationEmail(
         <div style="background: #111; border: 1px solid rgba(34,197,94,0.3); padding: 24px; margin-bottom: 24px;">
           <div style="color: #22c55e; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px;">Booking Confirmed ✓</div>
           <div style="font-size: 24px; font-weight: 700; margin-bottom: 4px;">${courtLabel}</div>
-          <div style="color: #999; font-size: 14px;">${booking.booking_date} · ${formatTime(booking.start_time)} – ${formatTime(booking.end_time)}</div>
+          <div style="color: #999; font-size: 14px;">${booking.booking_date}</div>
+        </div>
+
+        <div style="margin-bottom: 24px;">
+          <div style="font-size: 11px; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-bottom: 12px;">Your Selections</div>
+          ${selectionsWithFee.map(s => `
+            <div style="background: #1a1a1a; border: 1px solid rgba(34,197,94,0.4); border-left: 3px solid #22c55e; padding: 12px 16px; margin-bottom: 8px;">
+              <span style="font-size: 18px; font-weight: 700; color: #22c55e; letter-spacing: 1px; margin-right: 12px;">COURT ${s.court_number}</span>
+              <span style="font-size: 14px; color: #ddd;">${formatTime(s.start_time)} – ${formatTime(s.end_time)} · ${s.duration}h · ₱${s.fee.toLocaleString()}</span>
+            </div>
+          `).join('')}
         </div>
 
         <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 24px;">

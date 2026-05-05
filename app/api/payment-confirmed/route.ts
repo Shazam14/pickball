@@ -138,7 +138,12 @@ export async function POST(req: NextRequest) {
     .eq('booking_id', lead.id)
     .limit(1)
 
-  const courtNumbers = confirmedRows.map(b => b.court_number)
+  const selections = confirmedRows.map(b => ({
+    court_number: b.court_number,
+    start_time: b.start_time,
+    end_time: b.end_time,
+    duration: b.duration,
+  }))
   let insertedPlayers: { full_name: string | null; checkin_token: string }[] = []
   if (!existingPlayers || existingPlayers.length === 0) {
     const playerRows = Array.from({ length: lead.players }, (_, i) => ({
@@ -154,7 +159,7 @@ export async function POST(req: NextRequest) {
 
   // Send notifications (non-blocking).
   Promise.allSettled([
-    sendConfirmationEmail(lead, courtNumbers, insertedPlayers),
+    sendConfirmationEmail(lead, selections, insertedPlayers),
     sendConfirmationSMS(lead),
   ])
 
