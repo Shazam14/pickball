@@ -618,9 +618,9 @@ export default function ConceptDBookingPage() {
             <LobbyPlanButton className={styles.lobbyBtn} />
           </div>
           <div className={styles.legend}>
-            <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotGreen}`} />Available</div>
+            <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotGreen}`} />Selected</div>
             <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotAmber}`} />On Hold</div>
-            <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotRed}`} />Fully Booked</div>
+            <div className={styles.legendItem}><span className={`${styles.legendDot} ${styles.dotRed}`} />Booked</div>
           </div>
           <div className={styles.matrixHint} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
             <div>
