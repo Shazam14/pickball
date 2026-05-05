@@ -33,11 +33,15 @@ export async function sendConfirmationEmail(
   const onsiteEntrance = booking.pay_mode === 'onsite_entrance'
   const entranceFee = booking.players * ENTRANCE_FEE_PER_PERSON
   const total = courtFee + (onsiteEntrance ? 0 : entranceFee)
+
+  // QR is only issued for online-paid players (consumable for cafe & merch).
+  // Onsite-entrance bookings settle at the desk, no QR.
+  if (onsiteEntrance) players = []
   const courtLabel = courts === 1
     ? `COURT ${courtNumbers[0]}`
     : `COURTS ${courtNumbers.join(', ')}`
 
-  // QR per player record. Online = N players, N QRs. Onsite = booker only, 1 QR.
+  // QR per player record. Online = N players, N QRs. Onsite = empty (skipped above).
   const qrBuffers = await Promise.all(
     players.map(p =>
       QRCode.toBuffer(`https://sideoutcebu.com/checkin/${p.checkin_token}`, {
@@ -119,11 +123,11 @@ export async function sendConfirmationEmail(
 
         ${players.length > 0 ? `
         <div style="margin-bottom: 24px;">
-          <div style="font-size: 11px; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-bottom: 12px;">Players — Scan QR to Check In</div>
+          <div style="font-size: 11px; letter-spacing: 2px; color: #666; text-transform: uppercase; margin-bottom: 12px;">Players — QR for Cafe & Merch</div>
           <table style="width: 100%; border-collapse: collapse;">
             ${playerRows}
           </table>
-          <p style="font-size: 12px; color: #555; margin-top: 8px;">Each QR code is unique to one player. Show it at the entrance.</p>
+          <p style="font-size: 12px; color: #555; margin-top: 8px;">Each QR is unique to one player. Use it at the cafe or merch counter onsite.</p>
         </div>
         ` : ''}
 

@@ -574,6 +574,16 @@
   margin-top: 2px;
 }
 
+.qrNote {
+  margin-top: 6px;
+  padding: 10px 14px;
+  font-size: 12px;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  border-left: 2px solid rgba(34,197,94,0.4);
+  background: rgba(34,197,94,0.05);
+}
+
 .playerCard {
   background: var(--dark2);
   border: 1px solid rgba(255,255,255,0.06);

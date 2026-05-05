@@ -705,7 +705,7 @@ export default function ConceptDBookingPage() {
               </div>
               {payOnsite ? (
                 <div className={styles.priceBreakdownRow}>
-                  <span>Entrance (booker)</span>
+                  <span>Entrance</span>
                   <span style={{ color: '#f59e0b' }}>₱{ENTRANCE_FEE_PER_PERSON} at desk</span>
                 </div>
               ) : (
@@ -749,7 +749,7 @@ export default function ConceptDBookingPage() {
                 <div className={styles.playersHeader}>
                   <div>
                     <div className={styles.playersHeaderTitle}>You picked {players} {players === 1 ? 'player' : 'players'}</div>
-                    <div className={styles.playersHeaderHint}>Each player gets a QR gate pass · ₱{ENTRANCE_FEE_PER_PERSON}/head</div>
+                    <div className={styles.playersHeaderHint}>Each player gets a QR · use at cafe & merch · ₱{ENTRANCE_FEE_PER_PERSON}/head</div>
                   </div>
                   <div className={styles.stepper}>
                     <button type="button" className={styles.stepperBtn}
@@ -807,6 +807,10 @@ export default function ConceptDBookingPage() {
                     </div>
                   </div>
                 ))}
+
+                <div className={styles.qrNote}>
+                  Each player&apos;s QR is consumable at the cafe & merch counter onsite.
+                </div>
               </>
             )}
 
