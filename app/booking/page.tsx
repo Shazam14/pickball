@@ -706,7 +706,7 @@ export default function ConceptDBookingPage() {
               {payOnsite ? (
                 <div className={styles.priceBreakdownRow}>
                   <span>Entrance</span>
-                  <span style={{ color: '#f59e0b' }}>₱{ENTRANCE_FEE_PER_PERSON} at desk</span>
+                  <span style={{ color: '#f59e0b' }}>₱{ENTRANCE_FEE_PER_PERSON}/HEAD</span>
                 </div>
               ) : (
                 <div className={styles.priceBreakdownRow}>
