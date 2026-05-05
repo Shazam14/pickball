@@ -869,6 +869,10 @@ export default function ConceptDBookingPage() {
                         <div className={styles.confirmKey}>{amHours > 0 ? 'Morning' : 'Evening'}</div>
                       </div>
                     )}
+                    <div className={styles.confirmItem}>
+                      <div className={styles.confirmVal}>₱{courtFee.toLocaleString()}</div>
+                      <div className={styles.confirmKey}>Court Fee</div>
+                    </div>
                   </div>
                   {lockError && <div className={styles.lockError}>{lockError}</div>}
                   <button
