@@ -375,6 +375,15 @@ export default function ConceptDBookingPage() {
     }))
   }
 
+  // Toggle pay-onsite. Resets players to 1 in both directions — onsite means
+  // booker-only (₱50 booker entrance at desk); on flip back to online the
+  // user explicitly steps players up if they're bringing a roster.
+  function togglePayOnsite() {
+    setPayOnsite(v => !v)
+    setPlayers(1)
+    setPlayerNames([])
+  }
+
   // Continue → lock the picked slots up front, then move to the details
   // phase. Customer data is collected during details and written by
   // /api/confirm-booking when the user submits payment.
@@ -535,7 +544,7 @@ export default function ConceptDBookingPage() {
       <div className={styles.page}>
         <div className={styles.header}>
           <div className={styles.headerTop}>
-            <Link href="/" className={styles.back}>← Back</Link>
+            <Link href="/" className={styles.back}>← Home</Link>
           </div>
           <div className={styles.pageLabel}>— Book a Court</div>
           <div className={styles.pageTitle}>Reserve a Court</div>
@@ -686,6 +695,44 @@ export default function ConceptDBookingPage() {
           </div>
         )}
 
+        {/* PRICE BREAKDOWN — phase 'details' only, sits below booking lines */}
+        {phase === 'details' && picks.length > 0 && (
+          <div className={styles.detailsSection}>
+            <div className={styles.priceBreakdownBlock}>
+              <div className={styles.priceBreakdownRow}>
+                <span>Court fee</span>
+                <span>₱{courtFee.toLocaleString()}</span>
+              </div>
+              {payOnsite ? (
+                <div className={styles.priceBreakdownRow}>
+                  <span>Entrance (booker)</span>
+                  <span style={{ color: '#f59e0b' }}>₱{ENTRANCE_FEE_PER_PERSON} at desk</span>
+                </div>
+              ) : (
+                <div className={styles.priceBreakdownRow}>
+                  <span>Entrance ({players} × ₱{ENTRANCE_FEE_PER_PERSON})</span>
+                  <span>+ ₱{entranceFee.toLocaleString()}</span>
+                </div>
+              )}
+              <button
+                type="button"
+                className={`${styles.payModeToggle} ${payOnsite ? styles.payModeToggleActive : ''}`}
+                onClick={togglePayOnsite}
+                aria-pressed={payOnsite}
+                aria-label="Toggle pay entrance onsite"
+                style={{ alignSelf: 'flex-start' }}
+              >
+                <span className={styles.payModeSwitch} />
+                Pay entrance at front desk
+              </button>
+              <div className={styles.priceBreakdownTotal}>
+                <span>{payOnsite ? 'Due online' : 'Total'}</span>
+                <span>₱{onlineDue.toLocaleString()}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* DETAILS — only after Continue */}
         {phase === 'details' && picks.length > 0 && (
           <div className={styles.detailsSection}>
@@ -793,53 +840,36 @@ export default function ConceptDBookingPage() {
           </div>
         )}
 
-        {/* PRICE PANEL */}
+        {/* PRICE PANEL — sticky CTA only; breakdown moved into phase 'details' */}
         {picks.length > 0 && (
           <div className={styles.confirmPanel} data-tour="confirm">
-            <div className={styles.confirmDetails}>
-              <div className={styles.confirmItem}>
-                <div className={styles.confirmVal}>{numCourts}</div>
-                <div className={styles.confirmKey}>{numCourts === 1 ? 'Court' : 'Courts'}</div>
-              </div>
-              {showAmPmBreakdown ? (
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                  <div className={styles.confirmItem}>
-                    <div className={styles.confirmVal}>{amHours}h</div>
-                    <div className={styles.confirmKey}>Morning</div>
-                  </div>
-                  <span style={{ fontSize: 22, color: 'rgba(255,255,255,0.35)', fontWeight: 300, paddingTop: 6, alignSelf: 'flex-start' }}>+</span>
-                  <div className={styles.confirmItem}>
-                    <div className={styles.confirmVal}>{pmHours}h</div>
-                    <div className={styles.confirmKey}>Evening</div>
-                  </div>
-                </div>
-              ) : (
-                <div className={styles.confirmItem}>
-                  <div className={styles.confirmVal}>{totalHours}h</div>
-                  <div className={styles.confirmKey}>{amHours > 0 ? 'Morning' : 'Evening'}</div>
-                </div>
-              )}
-            </div>
             <div className={styles.confirmRight}>
-              <div className={styles.priceBreakdown}>
-                <span>Court ₱{courtFee.toLocaleString()}</span>
-                <span>{payOnsite ? `· Entrance ₱${ENTRANCE_FEE_PER_PERSON}/head (paid onsite)` : `+ Entrance ₱${entranceFee.toLocaleString()}`}</span>
-              </div>
-              {phase === 'review' && (
-                <button
-                  type="button"
-                  className={`${styles.payModeToggle} ${payOnsite ? styles.payModeToggleActive : ''}`}
-                  onClick={() => setPayOnsite(v => !v)}
-                  aria-pressed={payOnsite}
-                  aria-label="Toggle pay entrance onsite"
-                >
-                  <span className={styles.payModeSwitch} />
-                  Pay entrance at front desk
-                </button>
-              )}
-              <div className={styles.confirmPrice}>₱{onlineDue.toLocaleString()} <span>{payOnsite ? 'due online' : 'preview'}</span></div>
               {phase === 'review' ? (
                 <>
+                  <div className={styles.confirmDetails}>
+                    <div className={styles.confirmItem}>
+                      <div className={styles.confirmVal}>{numCourts}</div>
+                      <div className={styles.confirmKey}>{numCourts === 1 ? 'Court' : 'Courts'}</div>
+                    </div>
+                    {showAmPmBreakdown ? (
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+                        <div className={styles.confirmItem}>
+                          <div className={styles.confirmVal}>{amHours}h</div>
+                          <div className={styles.confirmKey}>Morning</div>
+                        </div>
+                        <span style={{ fontSize: 22, color: 'rgba(255,255,255,0.35)', fontWeight: 300, paddingTop: 6, alignSelf: 'flex-start' }}>+</span>
+                        <div className={styles.confirmItem}>
+                          <div className={styles.confirmVal}>{pmHours}h</div>
+                          <div className={styles.confirmKey}>Evening</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={styles.confirmItem}>
+                        <div className={styles.confirmVal}>{totalHours}h</div>
+                        <div className={styles.confirmKey}>{amHours > 0 ? 'Morning' : 'Evening'}</div>
+                      </div>
+                    )}
+                  </div>
                   {lockError && <div className={styles.lockError}>{lockError}</div>}
                   <button
                     type="button"

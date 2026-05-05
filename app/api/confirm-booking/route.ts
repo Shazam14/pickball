@@ -15,6 +15,7 @@ export async function POST(req: NextRequest) {
     customer_email,
     player_names,
     players,
+    pay_mode,
   } = body
 
   if (!reference || !payment_method || !payment_reference) {
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
   if (customer_email !== undefined) updatePayload.customer_email = customer_email || null
   if (player_names !== undefined) updatePayload.player_names = player_names
   if (typeof players === 'number') updatePayload.players = players
+  if (pay_mode === 'online' || pay_mode === 'onsite_entrance') updatePayload.pay_mode = pay_mode
 
   const { data: confirmedRows, error: updateError } = await getSupabaseAdmin()
     .from('bookings')

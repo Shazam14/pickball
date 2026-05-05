@@ -73,6 +73,7 @@ export interface ConfirmBookingRequest {
   customer_email?: string
   player_names?: string[]
   players?: number
+  pay_mode?: PayMode
 }
 
 export const COURT_PRICE_PER_HOUR = 700  // peak: weekday 4pm–12am, all weekend, holidays

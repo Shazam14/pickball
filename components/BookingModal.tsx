@@ -103,6 +103,7 @@ export default function BookingModal({ details, onSuccess, onExpire, onClose }: 
             ? [details.customerName]
             : [details.customerName, ...(details.playerNames ?? [])],
           players: details.players,
+          pay_mode: details.payOnsite ? 'onsite_entrance' : 'online',
         }),
       })
       const data = await res.json()
