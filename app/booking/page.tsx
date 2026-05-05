@@ -194,6 +194,7 @@ export default function ConceptDBookingPage() {
   const [lockData, setLockData] = useState<LockData | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [success, setSuccess] = useState<SuccessData | null>(null)
+  const [showPayModeNudge, setShowPayModeNudge] = useState(false)
 
   const formValid =
     customerName.trim().length > 0 &&
@@ -210,6 +211,12 @@ export default function ConceptDBookingPage() {
   useEffect(() => {
     if (picks.length === 0) setPhase('review')
   }, [picks.length])
+
+  // Re-show the pay-mode nudge each time the customer enters phase 'details'.
+  // Dismissed when they tap the toggle or close it (job done).
+  useEffect(() => {
+    if (phase === 'details') setShowPayModeNudge(true)
+  }, [phase])
 
   const totalHours = picks.length
   const courtFee = picks.reduce((sum, p) => sum + priceForHour(date, p.hour, holidays), 0)
@@ -381,6 +388,7 @@ export default function ConceptDBookingPage() {
     setPayOnsite(v => !v)
     setPlayers(1)
     setPlayerNames([])
+    setShowPayModeNudge(false)
   }
 
   // Continue → lock the picked slots up front, then move to the details
@@ -711,6 +719,19 @@ export default function ConceptDBookingPage() {
                 <div className={styles.priceBreakdownRow}>
                   <span>Entrance ({players} × ₱{ENTRANCE_FEE_PER_PERSON})</span>
                   <span>+ ₱{entranceFee.toLocaleString()}</span>
+                </div>
+              )}
+              {showPayModeNudge && (
+                <div className={styles.payModeNudge}>
+                  <span>Heads up — tap below to pay ₱{ENTRANCE_FEE_PER_PERSON}/HEAD at the front desk instead.</span>
+                  <button
+                    type="button"
+                    className={styles.payModeNudgeDismiss}
+                    onClick={() => setShowPayModeNudge(false)}
+                    aria-label="Dismiss"
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
               <button
